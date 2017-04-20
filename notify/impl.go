@@ -1018,40 +1018,29 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 	data := w.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
 
 	groupKey, ok := GroupKey(ctx)
-	log.Info("zhaopeng-iri data: ", data)
-	log.Info("zhaopeng-iri groupKey: ", groupKey)
-
+	/*
+		log.Info("zhaopeng-iri data: ", data)
+		log.Info("zhaopeng-iri data: ", data.Alerts)
+		log.Info("zhaopeng-iri data: ", data.CommonAnnotations)
+		log.Info("zhaopeng-iri data: ", data.CommonLabels)
+		log.Info("zhaopeng-iri data: ", data.ExternalURL)
+		log.Info("zhaopeng-iri data: ", data.GroupLabels)
+		log.Info("zhaopeng-iri data: ", data.Receiver)
+		log.Info("zhaopeng-iri data: ", data.Status)
+		log.Info("zhaopeng-iri groupKey: ", groupKey)
+	*/
 	if !ok {
 		log.Errorf("group key missing")
 	}
 
-	qalarmurl := w.QalarmUrl(fmt.Sprintf("Alart: %s\nAnnontations: %s\nStatus: %s", data.Alerts, data.CommonAnnotations, data.Status))
+	qalarmurl := w.QalarmUrl(fmt.Sprintf("Summary: %s\nDescription: %s\nStatus: %s", data.CommonAnnotations["summary"], data.CommonAnnotations["description"], data.Status))
 
 	resp, err := ctxhttp.Get(ctx, http.DefaultClient, qalarmurl)
 	if err != nil {
 		return true, err
 	}
 	return w.retry(resp.StatusCode)
-	/*
-		msg := &WebhookMessage{
-			Version:  "3",
-			Data:     data,
-			GroupKey: uint64(groupKey),
-		}
 
-		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-			return false, err
-		}
-
-		resp, err := ctxhttp.Post(ctx, http.DefaultClient, w.URL, contentTypeJSON, &buf)
-		if err != nil {
-			return true, err
-		}
-		resp.Body.Close()
-
-		return w.retry(resp.StatusCode)
-	*/
 }
 
 func (w *Qalarm) retry(statusCode int) (bool, error) {
