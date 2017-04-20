@@ -26,7 +26,12 @@ var (
 			VSendResolved: true,
 		},
 	}
-
+	// DefaultQalarmConfig defines default values for Webhook configurations.
+	DefaultQalarmConfig = QalarmConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
 		NotifierConfig: NotifierConfig{
@@ -391,4 +396,49 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return fmt.Errorf("missing token in Pushover config")
 	}
 	return checkOverflow(c.XXX, "pushover config")
+}
+
+// Qalarm configures notifications via a generic webhook.
+type QalarmConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	// URL to send GET request to.
+	URL string `yaml:"url" json:"url"`
+
+	// Appkey to send GET request to.
+	Appkey string `yaml:"appkey" json:"appkey"`
+
+	// Secret to send GET request to.
+	Secret string `yaml:"secret" json:"secret"`
+
+	// Wonder Alert group to send Get request to.
+	AlertGroup string `yaml:"alertgroup" json:"alertgroup"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *QalarmConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultQalarmConfig
+	type plain QalarmConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.URL == "" {
+		return fmt.Errorf("missing URL in Qalarm config")
+	}
+
+	if c.Appkey == "" {
+		return fmt.Errorf("missing Appkey in Qalarm config")
+	}
+
+	if c.Secret == "" {
+		return fmt.Errorf("missing Secret in Qalarm config")
+	}
+
+	if c.AlertGroup == "" {
+		return fmt.Errorf("missing AlertGroup in Qalarm config")
+	}
+	return checkOverflow(c.XXX, "Qalarm config")
 }

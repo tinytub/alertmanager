@@ -15,7 +15,9 @@ package notify
 
 import (
 	"bytes"
+	"crypto/md5"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,6 +29,7 @@ import (
 	"net/mail"
 	"net/smtp"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -104,6 +107,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 	for i, c := range nc.EmailConfigs {
 		n := NewEmail(c, tmpl)
 		add("email", i, n, c)
+	}
+	for i, c := range nc.QalarmConfigs {
+		n := NewQalarm(c, tmpl)
+		add("qalarm", i, n, c)
 	}
 	for i, c := range nc.PagerdutyConfigs {
 		n := NewPagerDuty(c, tmpl)
@@ -979,4 +986,164 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		}
 	}
 	return nil, nil
+}
+
+// Qalarm implements a Notifier for generic qalarm.
+type Qalarm struct {
+	// The URL to which notifications are sent.
+	URL        string
+	Appkey     string
+	Secret     string
+	AlertGroup string
+	phones     []string
+	tmpl       *template.Template
+}
+
+// NewQalarm returns a new Qalarm.
+func NewQalarm(conf *config.QalarmConfig, t *template.Template) *Qalarm {
+	return &Qalarm{URL: conf.URL, Appkey: conf.Appkey, Secret: conf.Secret, AlertGroup: conf.AlertGroup, tmpl: t}
+}
+
+// QalarmMessage defines the JSON object send to qalarm endpoints.
+type QalarmMessage struct {
+	*template.Data
+
+	// The protocol version.
+	Version  string `json:"version"`
+	GroupKey uint64 `json:"groupKey"`
+}
+
+// Notify implements the Notifier interface.
+func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
+	data := w.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
+
+	groupKey, ok := GroupKey(ctx)
+	log.Info("zhaopeng-iri data: ", data)
+	log.Info("zhaopeng-iri groupKey: ", groupKey)
+
+	if !ok {
+		log.Errorf("group key missing")
+	}
+
+	qalarmurl := w.QalarmUrl(fmt.Sprintf("Alart: %s\nAnnontations: %s\nStatus: %s", data.Alerts, data.CommonAnnotations, data.Status))
+
+	resp, err := ctxhttp.Get(ctx, http.DefaultClient, qalarmurl)
+	if err != nil {
+		return true, err
+	}
+	return w.retry(resp.StatusCode)
+	/*
+		msg := &WebhookMessage{
+			Version:  "3",
+			Data:     data,
+			GroupKey: uint64(groupKey),
+		}
+
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+			return false, err
+		}
+
+		resp, err := ctxhttp.Post(ctx, http.DefaultClient, w.URL, contentTypeJSON, &buf)
+		if err != nil {
+			return true, err
+		}
+		resp.Body.Close()
+
+		return w.retry(resp.StatusCode)
+	*/
+}
+
+func (w *Qalarm) retry(statusCode int) (bool, error) {
+	// Qalarm are assumed to respond with 2xx response codes on a successful
+	// request and 5xx response codes are assumed to be recoverable.
+	if statusCode/100 != 2 {
+		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v from %s", statusCode, w.URL)
+	}
+
+	return false, nil
+}
+
+func (w *Qalarm) GenSignatureByValues(vals url.Values) (string, error) {
+	// 验证app_key
+	//secret := "b7de39a44c5890daa77a84a4b4e"
+	secret := w.Secret
+
+	// 生成签名
+	// 1. 将所有参数按字段升序排序所有值
+	fields := make([]string, 0)
+	for k, _ := range vals {
+		//去掉参数中的sign
+		if k == "sign" {
+			continue
+		}
+		fields = append(fields, k)
+	}
+	sort.Strings(fields)
+
+	// 2. php: http_build_query()的效果
+	rawStr := ""
+	for _, key := range fields {
+		rawStr += url.QueryEscape(key) + "=" + url.QueryEscape(vals.Get(key)) + "&"
+	}
+	rawStr = strings.TrimRight(rawStr, "&")
+
+	// 3. md5(md5(rawStr) + public_key)
+	signStr := Md5Str(Md5Str(rawStr) + secret)
+
+	return signStr, nil
+}
+
+func Md5Str(s string) string {
+	h := md5.New()
+	h.Write([]byte(s))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (w *Qalarm) QalarmUrl(content string) string {
+
+	//raw_url := "http://alarm.add.corp.qihoo.net:80/api/send/sms?phones=18618327022&content=prometheus+test&app_key=addops&sign=b7de39a44c5890daa77a84a4b4e&level=2"
+	//u, _ := url.Parse("http://alarm.add.corp.qihoo.net:80/api/send/sms")
+	u, _ := url.Parse(w.URL)
+
+	q := u.Query()
+	q.Set("phones", w.Getphones())
+	q.Set("content", content)
+	q.Set("level", "2")
+	signStr, _ := w.GenSignatureByValues(q)
+	q.Set("app_key", w.Appkey)
+	q.Set("sign", signStr)
+	//fmt.Println(q.Encode())
+	u.RawQuery = q.Encode()
+	//	fmt.Println(u.String())
+	log.Debug("zhaopeng-iri qalarmurl: ", u.String())
+
+	return u.String()
+}
+
+type Wonder struct {
+	Errno  int
+	Errmsg string
+	Node   string
+	Data   []string
+}
+
+func (w *Qalarm) Getphones() string {
+	wonderurl := "http://api.wonder.corp.qihoo.net//uic/api/team/get-phones-by-uic"
+	u, _ := url.Parse(wonderurl)
+	q := u.Query()
+	q.Set("uic", "add_zp")
+	u.RawQuery = q.Encode()
+
+	//  {"errno":0,"errmsg":"","node":"wonder03v.add.bjdt.qihoo.net","data":["13552744710","18618327022","15600616739","18603516550"]}
+	resp, err := http.Get(u.String())
+	body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1048576))
+	if err != nil {
+		log.Errorf("read body error: %s", err)
+	}
+	var wonder *Wonder
+	err = json.Unmarshal(body, &wonder)
+
+	log.Info(wonder.Data)
+	return strings.Join(wonder.Data, ",")
 }
