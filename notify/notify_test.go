@@ -26,11 +26,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 
-	"github.com/prometheus/alertmanager/nflog"
-	"github.com/prometheus/alertmanager/nflog/nflogpb"
-	"github.com/prometheus/alertmanager/silence"
-	"github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/tinytub/alertmanager/nflog"
+	"github.com/tinytub/alertmanager/nflog/nflogpb"
+	"github.com/tinytub/alertmanager/silence"
+	"github.com/tinytub/alertmanager/silence/silencepb"
+	"github.com/tinytub/alertmanager/types"
 )
 
 type notifierConfigFunc func() bool

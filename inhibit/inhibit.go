@@ -20,9 +20,9 @@ import (
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/provider"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/tinytub/alertmanager/config"
+	"github.com/tinytub/alertmanager/provider"
+	"github.com/tinytub/alertmanager/types"
 )
 
 // An Inhibitor determines whether a given label set is muted

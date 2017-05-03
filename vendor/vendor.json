@@ -261,5 +261,5 @@
 			"revisionTime": "2016-11-21T14:22:35Z"
 		}
 	],
-	"rootPath": "github.com/prometheus/alertmanager"
+	"rootPath": "github.com/tinytub/alertmanager"
 }

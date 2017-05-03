@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/prometheus/alertmanager/test"
+	. "github.com/tinytub/alertmanager/test"
 )
 
 // This file contains acceptance tests around the basic sending logic

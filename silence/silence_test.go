@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/prometheus/alertmanager/silence/silencepb"
+	pb "github.com/tinytub/alertmanager/silence/silencepb"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/mesh"

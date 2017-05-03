@@ -1,5 +1,5 @@
 repository:
-    path: github.com/prometheus/alertmanager
+    path: github.com/tinytub/alertmanager
 build:
     binaries:
         - name: alertmanager

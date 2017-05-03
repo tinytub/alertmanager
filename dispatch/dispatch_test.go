@@ -10,8 +10,8 @@ import (
 	"github.com/prometheus/prometheus/pkg/labels"
 	"golang.org/x/net/context"
 
-	"github.com/prometheus/alertmanager/notify"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/tinytub/alertmanager/notify"
+	"github.com/tinytub/alertmanager/types"
 )
 
 func newAPIAlert(labels model.LabelSet) APIAlert {

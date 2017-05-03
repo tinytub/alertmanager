@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
-	pb "github.com/prometheus/alertmanager/nflog/nflogpb"
+	pb "github.com/tinytub/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/weaveworks/mesh"

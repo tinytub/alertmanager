@@ -38,9 +38,9 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/tinytub/alertmanager/config"
+	"github.com/tinytub/alertmanager/template"
+	"github.com/tinytub/alertmanager/types"
 )
 
 type notifierConfig interface {

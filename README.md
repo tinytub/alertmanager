@@ -29,8 +29,8 @@ Docker images are available on [Quay.io](https://quay.io/repository/prometheus/a
 You can either `go get` it:
 
 ```
-$ GO15VENDOREXPERIMENT=1 go get github.com/prometheus/alertmanager/cmd/...
-# cd $GOPATH/src/github.com/prometheus/alertmanager
+$ GO15VENDOREXPERIMENT=1 go get github.com/tinytub/alertmanager/cmd/...
+# cd $GOPATH/src/github.com/tinytub/alertmanager
 $ alertmanager -config.file=<your_file>
 ```
 
@@ -39,7 +39,7 @@ Or checkout the source code and build manually:
 ```
 $ mkdir -p $GOPATH/src/github.com/prometheus
 $ cd $GOPATH/src/github.com/prometheus
-$ git clone https://github.com/prometheus/alertmanager.git
+$ git clone https://github.com/tinytub/alertmanager.git
 $ cd alertmanager
 $ make build
 $ ./alertmanager -config.file=<your_file>

@@ -18,7 +18,7 @@ import (
 
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/types"
+	"github.com/tinytub/alertmanager/types"
 )
 
 var (
