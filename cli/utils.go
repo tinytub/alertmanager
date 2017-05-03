@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/prometheus/alertmanager/pkg/parse"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/tinytub/alertmanager/pkg/parse"
+	"github.com/tinytub/alertmanager/types"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
 )

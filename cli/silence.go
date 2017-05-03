@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/prometheus/alertmanager/types"
+	"github.com/tinytub/alertmanager/types"
 )
 
 //var labels []string

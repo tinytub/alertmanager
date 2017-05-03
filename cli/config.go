@@ -8,8 +8,8 @@ import (
 	"path"
 	"time"
 
-	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/alertmanager/config"
+	"github.com/tinytub/alertmanager/cli/format"
+	"github.com/tinytub/alertmanager/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

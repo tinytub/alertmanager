@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/alertmanager/cli/format"
-	"github.com/prometheus/alertmanager/pkg/parse"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/tinytub/alertmanager/cli/format"
+	"github.com/tinytub/alertmanager/pkg/parse"
+	"github.com/tinytub/alertmanager/types"
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"

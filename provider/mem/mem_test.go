@@ -21,12 +21,8 @@ import (
 	"time"
 
 	"github.com/kylelemons/godebug/pretty"
-<<<<<<< HEAD
+	"github.com/tinytub/alertmanager/provider"
 	"github.com/tinytub/alertmanager/types"
-=======
-	"github.com/prometheus/alertmanager/provider"
-	"github.com/prometheus/alertmanager/types"
->>>>>>> 5aeaf2cb988b0094b7998bbe6568bba23a0eb9c2
 	"github.com/prometheus/common/model"
 )
 

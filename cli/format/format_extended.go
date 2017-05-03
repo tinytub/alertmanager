@@ -8,8 +8,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/tinytub/alertmanager/dispatch"
+	"github.com/tinytub/alertmanager/types"
 	"github.com/prometheus/common/model"
 )
 

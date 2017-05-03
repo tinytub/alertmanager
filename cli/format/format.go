@@ -4,9 +4,9 @@ import (
 	"io"
 	"time"
 
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/dispatch"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/tinytub/alertmanager/config"
+	"github.com/tinytub/alertmanager/dispatch"
+	"github.com/tinytub/alertmanager/types"
 	"github.com/spf13/viper"
 )
 

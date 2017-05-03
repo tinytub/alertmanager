@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/tinytub/alertmanager/cli/format"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
