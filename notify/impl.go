@@ -15,11 +15,8 @@ package notify
 
 import (
 	"bytes"
-<<<<<<< HEAD
 	"crypto/md5"
-=======
 	"crypto/sha256"
->>>>>>> 5aeaf2cb988b0094b7998bbe6568bba23a0eb9c2
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
@@ -992,7 +989,6 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	return nil, nil
 }
 
-<<<<<<< HEAD
 // Qalarm implements a Notifier for generic qalarm.
 type Qalarm struct {
 	// The URL to which notifications are sent.
@@ -1023,17 +1019,15 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 	data := w.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
 
 	groupKey, ok := GroupKey(ctx)
-	/*
-		log.Info("zhaopeng-iri data: ", data)
-		log.Info("zhaopeng-iri data: ", data.Alerts)
-		log.Info("zhaopeng-iri data: ", data.CommonAnnotations)
-		log.Info("zhaopeng-iri data: ", data.CommonLabels)
-		log.Info("zhaopeng-iri data: ", data.ExternalURL)
-		log.Info("zhaopeng-iri data: ", data.GroupLabels)
-		log.Info("zhaopeng-iri data: ", data.Receiver)
-		log.Info("zhaopeng-iri data: ", data.Status)
-		log.Info("zhaopeng-iri groupKey: ", groupKey)
-	*/
+	log.Info("zhaopeng-iri data: ", data)
+	log.Info("zhaopeng-iri data: ", data.Alerts)
+	log.Info("zhaopeng-iri data: ", data.CommonAnnotations)
+	log.Info("zhaopeng-iri data: ", data.CommonLabels)
+	log.Info("zhaopeng-iri data: ", data.ExternalURL)
+	log.Info("zhaopeng-iri data: ", data.GroupLabels)
+	log.Info("zhaopeng-iri data: ", data.Receiver)
+	log.Info("zhaopeng-iri data: ", data.Status)
+	log.Info("zhaopeng-iri groupKey: ", groupKey)
 	if !ok {
 		log.Errorf("group key missing")
 	}
@@ -1140,12 +1134,12 @@ func (w *Qalarm) Getphones() string {
 
 	log.Info(wonder.Data)
 	return strings.Join(wonder.Data, ",")
-=======
+}
+
 // hashKey returns the sha256 for a group key as integrations may have
 // maximum length requirements on deduplication keys.
 func hashKey(s string) string {
 	h := sha256.New()
 	h.Write([]byte(s))
 	return fmt.Sprintf("%x", h.Sum(nil))
->>>>>>> 5aeaf2cb988b0094b7998bbe6568bba23a0eb9c2
 }
