@@ -8,10 +8,10 @@ import (
 	"path"
 	"time"
 
-	"github.com/tinytub/alertmanager/cli/format"
-	"github.com/tinytub/alertmanager/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/tinytub/alertmanager/cli/format"
+	"github.com/tinytub/alertmanager/config"
 )
 
 // Config is the response type of alertmanager config endpoint

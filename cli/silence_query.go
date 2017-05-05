@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tinytub/alertmanager/cli/format"
-	"github.com/tinytub/alertmanager/pkg/parse"
-	"github.com/tinytub/alertmanager/types"
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"github.com/tinytub/alertmanager/cli/format"
+	"github.com/tinytub/alertmanager/pkg/parse"
+	"github.com/tinytub/alertmanager/types"
 )
 
 var queryFlags *flag.FlagSet

@@ -109,10 +109,13 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 		n := NewEmail(c, tmpl)
 		add("email", i, n, c)
 	}
+
+	// ADD by zhaopeng-iri
 	for i, c := range nc.QalarmConfigs {
 		n := NewQalarm(c, tmpl)
 		add("qalarm", i, n, c)
 	}
+
 	for i, c := range nc.PagerdutyConfigs {
 		n := NewPagerDuty(c, tmpl)
 		add("pagerduty", i, n, c)
@@ -990,6 +993,7 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 }
 
 // Qalarm implements a Notifier for generic qalarm.
+// ADD by zhaopeng-iri
 type Qalarm struct {
 	// The URL to which notifications are sent.
 	URL        string
@@ -1001,11 +1005,13 @@ type Qalarm struct {
 }
 
 // NewQalarm returns a new Qalarm.
+// ADD by zhaopeng-iri
 func NewQalarm(conf *config.QalarmConfig, t *template.Template) *Qalarm {
 	return &Qalarm{URL: conf.URL, Appkey: conf.Appkey, Secret: conf.Secret, AlertGroup: conf.AlertGroup, tmpl: t}
 }
 
 // QalarmMessage defines the JSON object send to qalarm endpoints.
+// ADD by zhaopeng-iri
 type QalarmMessage struct {
 	*template.Data
 
@@ -1015,6 +1021,7 @@ type QalarmMessage struct {
 }
 
 // Notify implements the Notifier interface.
+// ADD by zhaopeng-iri
 func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 	data := w.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
 
@@ -1042,6 +1049,7 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 
 }
 
+// ADD by zhaopeng-iri
 func (w *Qalarm) retry(statusCode int) (bool, error) {
 	// Qalarm are assumed to respond with 2xx response codes on a successful
 	// request and 5xx response codes are assumed to be recoverable.
@@ -1052,6 +1060,7 @@ func (w *Qalarm) retry(statusCode int) (bool, error) {
 	return false, nil
 }
 
+// ADD by zhaopeng-iri
 func (w *Qalarm) GenSignatureByValues(vals url.Values) (string, error) {
 	// 验证app_key
 	//secret := "b7de39a44c5890daa77a84a4b4e"
@@ -1082,12 +1091,14 @@ func (w *Qalarm) GenSignatureByValues(vals url.Values) (string, error) {
 	return signStr, nil
 }
 
+// ADD by zhaopeng-iri
 func Md5Str(s string) string {
 	h := md5.New()
 	h.Write([]byte(s))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// ADD by zhaopeng-iri
 func (w *Qalarm) QalarmUrl(content string) string {
 
 	//raw_url := "http://alarm.add.corp.qihoo.net:80/api/send/sms?phones=18618327022&content=prometheus+test&app_key=addops&sign=b7de39a44c5890daa77a84a4b4e&level=2"
@@ -1109,6 +1120,7 @@ func (w *Qalarm) QalarmUrl(content string) string {
 	return u.String()
 }
 
+// ADD by zhaopeng-iri
 type Wonder struct {
 	Errno  int
 	Errmsg string
@@ -1116,11 +1128,12 @@ type Wonder struct {
 	Data   []string
 }
 
+// ADD by zhaopeng-iri
 func (w *Qalarm) Getphones() string {
 	wonderurl := "http://api.wonder.corp.qihoo.net//uic/api/team/get-phones-by-uic"
 	u, _ := url.Parse(wonderurl)
 	q := u.Query()
-	q.Set("uic", "add_zp")
+	q.Set("uic", w.AlertGroup)
 	u.RawQuery = q.Encode()
 
 	//  {"errno":0,"errmsg":"","node":"wonder03v.add.bjdt.qihoo.net","data":["13552744710","18618327022","15600616739","18603516550"]}

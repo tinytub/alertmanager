@@ -4,10 +4,10 @@ import (
 	"io"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/tinytub/alertmanager/config"
 	"github.com/tinytub/alertmanager/dispatch"
 	"github.com/tinytub/alertmanager/types"
-	"github.com/spf13/viper"
 )
 
 const DefaultDateFormat = "2006-01-02 15:04:05 MST"

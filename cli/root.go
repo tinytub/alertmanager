@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tinytub/alertmanager/cli/format"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/tinytub/alertmanager/cli/format"
 )
 
 // RootCmd represents the base command when called without any subcommands

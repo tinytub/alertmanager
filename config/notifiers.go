@@ -27,6 +27,7 @@ var (
 		},
 	}
 	// DefaultQalarmConfig defines default values for Webhook configurations.
+	// ADD by zhaopeng-iri
 	DefaultQalarmConfig = QalarmConfig{
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
@@ -399,6 +400,7 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 }
 
 // Qalarm configures notifications via a generic webhook.
+// ADD by zhaopeng-iri
 type QalarmConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
@@ -419,6 +421,7 @@ type QalarmConfig struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
+// ADD by zhaopeng-iri
 func (c *QalarmConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultQalarmConfig
 	type plain QalarmConfig
