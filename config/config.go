@@ -28,14 +28,26 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var patAuthLine = regexp.MustCompile(`((?:api_key|service_key|api_url|token|user_key|password|secret):\s+)(".+"|'.+'|[^\s]+)`)
-
 // Secret is a string that must not be revealed on marshaling.
 type Secret string
 
 // MarshalYAML implements the yaml.Marshaler interface.
 func (s Secret) MarshalYAML() (interface{}, error) {
-	return "<hidden>", nil
+	if s != "" {
+		return "<secret>", nil
+	}
+	return nil, nil
+}
+
+//UnmarshalYAML implements the yaml.Unmarshaler interface for Secrets.
+func (s *Secret) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Secret
+	return unmarshal((*plain)(s))
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+func (s Secret) MarshalJSON() ([]byte, error) {
+	return json.Marshal("<secret>")
 }
 
 // Load parses the YAML input s into a Config.
@@ -52,23 +64,28 @@ func Load(s string) (*Config, error) {
 		return nil, errors.New("no route provided in config")
 	}
 
+	// Check if continue in root route.
+	if cfg.Route.Continue {
+		return nil, errors.New("cannot have continue in root route")
+	}
+
 	cfg.original = s
 	return cfg, nil
 }
 
 // LoadFile parses the given YAML file into a Config.
-func LoadFile(filename string) (*Config, error) {
+func LoadFile(filename string) (*Config, []byte, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	cfg, err := Load(string(content))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	resolveFilepaths(filepath.Dir(filename), cfg)
-	return cfg, nil
+	return cfg, content, nil
 }
 
 // resolveFilepaths joins all relative paths in a configuration
@@ -113,17 +130,11 @@ func checkOverflow(m map[string]interface{}, ctx string) error {
 }
 
 func (c Config) String() string {
-	var s string
-	if c.original != "" {
-		s = c.original
-	} else {
-		b, err := yaml.Marshal(c)
-		if err != nil {
-			return fmt.Sprintf("<error creating config string: %s>", err)
-		}
-		s = string(b)
+	b, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Sprintf("<error creating config string: %s>", err)
 	}
-	return patAuthLine.ReplaceAllString(s, "${1}<hidden>")
+	return string(b)
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -493,7 +504,7 @@ func (re *Regexp) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
-	regex, err := regexp.Compile(s)
+	regex, err := regexp.Compile("^(?:" + s + ")$")
 	if err != nil {
 		return err
 	}
@@ -502,7 +513,7 @@ func (re *Regexp) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalJSON implements the json.Marshaler interface.
-func (re *Regexp) MarshalJSON() ([]byte, error) {
+func (re Regexp) MarshalJSON() ([]byte, error) {
 	if re.Regexp != nil {
 		return json.Marshal(re.String())
 	}

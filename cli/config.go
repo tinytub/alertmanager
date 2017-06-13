@@ -17,8 +17,8 @@ import (
 // Config is the response type of alertmanager config endpoint
 // Duped in cli/format needs to be moved to common/model
 type Config struct {
-	Config      string                 `json:"config"`
-	ConfigJSON  config.Config          `json:configJSON`
+	ConfigYAML  string                 `json:"configYAML"`
+	ConfigJSON  config.Config          `json:"configJSON"`
 	MeshStatus  map[string]interface{} `json:"meshStatus"`
 	VersionInfo map[string]string      `json:"versionInfo"`
 	Uptime      time.Time              `json:"uptime"`
@@ -74,12 +74,10 @@ func fetchConfig() (Config, error) {
 	}
 
 	defer res.Body.Close()
-	decoder := json.NewDecoder(res.Body)
 
-	err = decoder.Decode(&configResponse)
+	err = json.NewDecoder(res.Body).Decode(&configResponse)
 	if err != nil {
-		panic(err)
-		return Config{}, err
+		return configResponse.Data, err
 	}
 
 	if configResponse.Status != "success" {

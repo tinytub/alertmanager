@@ -18,14 +18,11 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"io/ioutil"
-	stdlog "log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
-	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -85,9 +82,10 @@ func main() {
 		retention  = flag.Duration("data.retention", 5*24*time.Hour, "How long to keep data for.")
 
 		externalURL   = flag.String("web.external-url", "", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
+		routePrefix   = flag.String("web.route-prefix", "", "Prefix for the internal routes of web endpoints. Defaults to path of -web.external-url.")
 		listenAddress = flag.String("web.listen-address", ":9093", "Address to listen on for the web interface and API.")
 
-		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address")
+		meshListen = flag.String("mesh.listen-address", net.JoinHostPort("0.0.0.0", strconv.Itoa(mesh.Port)), "mesh listen address. Pass an empty string to disable.")
 		hwaddr     = flag.String("mesh.peer-id", "", "mesh peer ID (default: MAC address)")
 		nickname   = flag.String("mesh.nickname", mustHostname(), "mesh peer nickname")
 		password   = flag.String("mesh.password", "", "password to join the peer network (empty password disables encryption)")
@@ -117,37 +115,59 @@ func main() {
 	}
 
 	logger := log.NewLogger(os.Stderr)
-	mrouter := initMesh(*meshListen, *hwaddr, *nickname, *password)
+
+	var mrouter *mesh.Router
+	if *meshListen != "" {
+		mrouter, err = initMesh(*meshListen, *hwaddr, *nickname, *password, log.With("component", "mesh"))
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	stopc := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	notificationLog, err := nflog.New(
-		nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
-			return mrouter.NewGossip("nflog", g)
-		}),
+	notificationLogOpts := []nflog.Option{
 		nflog.WithRetention(*retention),
 		nflog.WithSnapshot(filepath.Join(*dataDir, "nflog")),
 		nflog.WithMaintenance(15*time.Minute, stopc, wg.Done),
 		nflog.WithMetrics(prometheus.DefaultRegisterer),
 		nflog.WithLogger(logger.With("component", "nflog")),
-	)
+	}
+	if *meshListen != "" {
+		notificationLogOpts = append(notificationLogOpts, nflog.WithMesh(func(g mesh.Gossiper) mesh.Gossip {
+			res, err := mrouter.NewGossip("nflog", g)
+			if err != nil {
+				log.Fatal(err)
+			}
+			return res
+		}))
+	}
+	notificationLog, err := nflog.New(notificationLogOpts...)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	marker := types.NewMarker()
 
-	silences, err := silence.New(silence.Options{
+	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(*dataDir, "silences"),
 		Retention:    *retention,
 		Logger:       logger.With("component", "silences"),
 		Metrics:      prometheus.DefaultRegisterer,
-		Gossip: func(g mesh.Gossiper) mesh.Gossip {
-			return mrouter.NewGossip("silences", g)
-		},
-	})
+	}
+	if *meshListen != "" {
+		silenceOpts.Gossip = func(g mesh.Gossiper) mesh.Gossip {
+			res, err := mrouter.NewGossip("silences", g)
+			if err != nil {
+				log.Fatal(err)
+			}
+			return res
+		}
+	}
+	silences, err := silence.New(silenceOpts)
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -159,7 +179,11 @@ func main() {
 		wg.Done()
 	}()
 
-	mrouter.Start()
+	// Disable mesh if empty string passed for mesh.listen-address flag.
+	if *meshListen != "" {
+		mrouter.Start()
+		mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
+	}
 
 	defer func() {
 		close(stopc)
@@ -167,8 +191,6 @@ func main() {
 		mrouter.Stop()
 		wg.Wait()
 	}()
-
-	mrouter.ConnectionMaker.InitiateConnections(peers.slice(), true)
 
 	alerts, err := mem.NewAlerts(marker, 30*time.Minute, *dataDir)
 	if err != nil {
@@ -184,9 +206,15 @@ func main() {
 	)
 	defer disp.Stop()
 
-	apiv := api.New(alerts, silences, func(matchers []*labels.Matcher) dispatch.AlertOverview {
-		return disp.Groups(matchers)
-	}, mrouter)
+	apiv := api.New(
+		alerts,
+		silences,
+		func(matchers []*labels.Matcher) dispatch.AlertOverview {
+			return disp.Groups(matchers)
+		},
+		marker.Status,
+		mrouter,
+	)
 
 	amURL, err := extURL(*listenAddress, *externalURL)
 	if err != nil {
@@ -215,14 +243,14 @@ func main() {
 			}
 		}()
 
-		conf, err := config.LoadFile(*configFile)
+		conf, plainCfg, err := config.LoadFile(*configFile)
 		if err != nil {
 			return err
 		}
 
-		hash = md5HashAsMetricValue([]byte(conf.String()))
+		hash = md5HashAsMetricValue(plainCfg)
 
-		err = apiv.Update(conf.String(), time.Duration(conf.Global.ResolveTimeout))
+		err = apiv.Update(conf, time.Duration(conf.Global.ResolveTimeout))
 		if err != nil {
 			return err
 		}
@@ -258,11 +286,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Make routePrefix default to externalURL path if empty string.
+	if routePrefix == nil || *routePrefix == "" {
+		*routePrefix = amURL.Path
+	}
+
+	*routePrefix = "/" + strings.Trim(*routePrefix, "/")
+
 	router := route.New()
 
+	if *routePrefix != "/" {
+		router = router.WithPrefix(*routePrefix)
+	}
+
 	webReload := make(chan struct{})
-	ui.Register(router.WithPrefix(amURL.Path), webReload)
-	apiv.Register(router.WithPrefix(path.Join(amURL.Path, "/api")))
+
+	ui.Register(router, webReload)
+
+	apiv.Register(router.WithPrefix("/api"))
 
 	log.Infoln("Listening on", *listenAddress)
 	go listen(*listenAddress, router)
@@ -322,7 +363,7 @@ func meshWait(r *mesh.Router, timeout time.Duration) func() time.Duration {
 	}
 }
 
-func initMesh(addr, hwaddr, nickname, pw string) *mesh.Router {
+func initMesh(addr, hwaddr, nickname, pw string, logger log.Logger) (*mesh.Router, error) {
 	host, portStr, err := net.SplitHostPort(addr)
 
 	if err != nil {
@@ -353,8 +394,15 @@ func initMesh(addr, hwaddr, nickname, pw string) *mesh.Router {
 		ConnLimit:          64,
 		PeerDiscovery:      true,
 		TrustedSubnets:     []*net.IPNet{},
-	}, name, nickname, mesh.NullOverlay{}, stdlog.New(ioutil.Discard, "", 0))
+	}, name, nickname, mesh.NullOverlay{}, printfLogger{logger})
+}
 
+type printfLogger struct {
+	log.Logger
+}
+
+func (l printfLogger) Printf(f string, args ...interface{}) {
+	l.Debugf(f, args...)
 }
 
 func extURL(listen, external string) (*url.URL, error) {
