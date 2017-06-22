@@ -22,10 +22,10 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/prometheus/alertmanager/silence/silencepb"
-	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
+	pb "github.com/tinytub/alertmanager/silence/silencepb"
+	"github.com/tinytub/alertmanager/types"
 	"github.com/weaveworks/mesh"
 )
 

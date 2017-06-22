@@ -1026,22 +1026,34 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 	data := w.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
 
 	groupKey, ok := GroupKey(ctx)
-	log.Info("zhaopeng-iri data: ", data)
-	log.Info("zhaopeng-iri data: ", data.Alerts)
-	log.Info("zhaopeng-iri data: ", data.CommonAnnotations)
-	log.Info("zhaopeng-iri data: ", data.CommonLabels)
-	log.Info("zhaopeng-iri data: ", data.ExternalURL)
-	log.Info("zhaopeng-iri data: ", data.GroupLabels)
-	log.Info("zhaopeng-iri data: ", data.Receiver)
-	log.Info("zhaopeng-iri data: ", data.Status)
-	log.Info("zhaopeng-iri groupKey: ", groupKey)
+	log.Infof("zhaopeng-iri data: %+v\n", data)
+	log.Infof("zhaopeng-iri data.Alerts: %+v\n", data.Alerts)
+	log.Infof("zhaopeng-iri data.CommonAnnotations: %+v\n", data.CommonAnnotations)
+	log.Infof("zhaopeng-iri data.CommonLabels: %+v\n", data.CommonLabels)
+	log.Infof("zhaopeng-iri data.ExternalURL: %+v\n", data.ExternalURL)
+	log.Infof("zhaopeng-iri data.GroupLabels: %+v\n", data.GroupLabels)
+	log.Infof("zhaopeng-iri data.Receiver: %+v\n", data.Receiver)
+	log.Infof("zhaopeng-iri data.Status: %+v\n", data.Status)
+	log.Infof("zhaopeng-iri groupKey:%+v\n ", groupKey)
 	if !ok {
 		log.Errorf("group key missing")
 	}
 
-	qalarmurl := w.QalarmUrl(fmt.Sprintf("Summary: %s\nDescription: %s\nStatus: %s", data.CommonAnnotations["summary"], data.CommonAnnotations["description"], data.Status))
+	var url string
+	if len(data.Alerts) > 1 {
+		var content []string
+		for _, d := range data.Alerts {
+			content = append(content, fmt.Sprintf("Summary: %s\nDescription: %s\nStatus: %s\n", d.Annotations["summary"], d.Annotations["description"], d.Status))
+			//		qalarmurl := w.QalarmUrl(fmt.Sprintf("Summary: %s\nDescription: %s\nStatus: %s\n\n", d.CommonAnnotations["summary"], d.CommonAnnotations["description"], d.Status))
+		}
+		url = w.QalarmUrl(content)
 
-	resp, err := ctxhttp.Get(ctx, http.DefaultClient, qalarmurl)
+	} else {
+		content := w.QalarmUrl(fmt.Sprintf("Summary: %s\nDescription: %s\nStatus: %s", data.CommonAnnotations["summary"], data.CommonAnnotations["description"], data.Status))
+		url = w.QalarmUrl(content)
+	}
+
+	resp, err := ctxhttp.Get(ctx, http.DefaultClient, url)
 	if err != nil {
 		return true, err
 	}
@@ -1099,7 +1111,7 @@ func Md5Str(s string) string {
 }
 
 // ADD by zhaopeng-iri
-func (w *Qalarm) QalarmUrl(content string) string {
+func (w *Qalarm) QalarmUrl(content interface{}) string {
 
 	//raw_url := "http://alarm.add.corp.qihoo.net:80/api/send/sms?phones=18618327022&content=prometheus+test&app_key=addops&sign=b7de39a44c5890daa77a84a4b4e&level=2"
 	//u, _ := url.Parse("http://alarm.add.corp.qihoo.net:80/api/send/sms")
@@ -1107,7 +1119,13 @@ func (w *Qalarm) QalarmUrl(content string) string {
 
 	q := u.Query()
 	q.Set("phones", w.Getphones())
-	q.Set("content", content)
+	switch v := content.(type) {
+	case string:
+		q.Set("content", v)
+	case []string:
+		q.Set("content", strings.Join(v, "\n"))
+	}
+	//	q.Set("content", content)
 	q.Set("level", "2")
 	signStr, _ := w.GenSignatureByValues(q)
 	q.Set("app_key", w.Appkey)
