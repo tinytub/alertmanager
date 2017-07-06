@@ -25,6 +25,7 @@ import (
 	"io"
 	"io/ioutil"
 	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/mail"
@@ -1025,6 +1026,13 @@ type QalarmMessage struct {
 func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 	data := w.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
 
+	statsMap := map[string]string{
+		"firing":   "异常",
+		"resolved": "恢复",
+	}
+
+	//client, _ := NewClientForTimeOut()
+
 	groupKey, ok := GroupKey(ctx)
 	log.Infof("zhaopeng-iri data: %+v\n", data)
 	log.Infof("zhaopeng-iri data.Alerts: %+v\n", data.Alerts)
@@ -1039,24 +1047,53 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 		log.Errorf("group key missing")
 	}
 
-	var url string
+	//	var url string
+	var resp *http.Response
+	var respErr error
 	if len(data.Alerts) > 1 {
 		var content []string
 		for _, d := range data.Alerts {
-			content = append(content, fmt.Sprintf("Summary: %s\nDescription: %s\nStatus: %s\n", d.Annotations["summary"], d.Annotations["description"], d.Status))
-			//		qalarmurl := w.QalarmUrl(fmt.Sprintf("Summary: %s\nDescription: %s\nStatus: %s\n\n", d.CommonAnnotations["summary"], d.CommonAnnotations["description"], d.Status))
+			content = append(content, fmt.Sprintf("[%s] %s\n[详情] %s\n", statsMap[d.Status], d.Annotations["summary"], d.Annotations["description"]))
 		}
-		url = w.QalarmUrl(content)
+		uri := w.QalarmUrl(content)
+		body, writer, err := genQalarmBody(uri)
+
+		if err != nil {
+			return true, err
+		}
+
+		resp, respErr = ctxhttp.Post(ctx, http.DefaultClient, w.URL, writer.FormDataContentType(), body)
+		if resp != nil && resp.Body != nil {
+			defer func() {
+				io.Copy(ioutil.Discard, resp.Body)
+				resp.Body.Close()
+			}()
+		}
+		defer resp.Body.Close()
 
 	} else {
-		content := w.QalarmUrl(fmt.Sprintf("Summary: %s\nDescription: %s\nStatus: %s", data.CommonAnnotations["summary"], data.CommonAnnotations["description"], data.Status))
-		url = w.QalarmUrl(content)
+		content := fmt.Sprintf("[%s] %s\n[详情] %s\n", statsMap[data.Status], data.CommonAnnotations["summary"], data.CommonAnnotations["description"])
+		uri := w.QalarmUrl(content)
+		body, writer, err := genQalarmBody(uri)
+
+		if err != nil {
+			return true, err
+		}
+
+		resp, respErr = ctxhttp.Post(ctx, http.DefaultClient, w.URL, writer.FormDataContentType(), body)
+		if resp != nil && resp.Body != nil {
+			defer func() {
+				io.Copy(ioutil.Discard, resp.Body)
+				resp.Body.Close()
+			}()
+		}
+		defer resp.Body.Close()
 	}
 
-	resp, err := ctxhttp.Get(ctx, http.DefaultClient, url)
-	if err != nil {
-		return true, err
+	if respErr != nil {
+		return true, respErr
 	}
+
 	return w.retry(resp.StatusCode)
 
 }
@@ -1070,6 +1107,24 @@ func (w *Qalarm) retry(statusCode int) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// Add by zhaopeng-iri
+func genQalarmBody(uri string) (*bytes.Buffer, *multipart.Writer, error) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	for _, val := range strings.Split(uri, "&") {
+		t := strings.Split(val, "=")
+		_ = writer.WriteField(t[0], t[1])
+	}
+	err := writer.Close()
+	if err != nil {
+		log.Errorf("genarate qalarm body error: ", err)
+		return nil, nil, err
+	}
+
+	return body, writer, nil
 }
 
 // ADD by zhaopeng-iri
@@ -1119,20 +1174,29 @@ func (w *Qalarm) QalarmUrl(content interface{}) string {
 
 	q := u.Query()
 	q.Set("phones", w.Getphones())
+
+	//	q.Set("content", content)
+	var signStr string
+	q.Set("level", "2")
 	switch v := content.(type) {
 	case string:
 		q.Set("content", v)
+		signStr, _ = w.GenSignatureByValues(q)
+		log.Debug("zhaopeng-iri content: ", v)
+		uri := fmt.Sprintf("phones=%s&level=%d&app_key=%s&sign=%s&content=%s", w.Getphones(), 2, w.Appkey, signStr, v)
+		return uri
 	case []string:
 		q.Set("content", strings.Join(v, "\n"))
+		signStr, _ = w.GenSignatureByValues(q)
+		log.Debug("zhaopeng-iri content: ", strings.Join(v, "\n"))
+		content := strings.Join(v, "\n")
+		uri := fmt.Sprintf("phones=%s&level=%d&app_key=%s&sign=%s&content=%s", w.Getphones(), 2, w.Appkey, signStr, content)
+		return uri
 	}
-	//	q.Set("content", content)
-	q.Set("level", "2")
-	signStr, _ := w.GenSignatureByValues(q)
+
 	q.Set("app_key", w.Appkey)
 	q.Set("sign", signStr)
-	//fmt.Println(q.Encode())
 	u.RawQuery = q.Encode()
-	//	fmt.Println(u.String())
 	log.Debug("zhaopeng-iri qalarmurl: ", u.String())
 
 	return u.String()
