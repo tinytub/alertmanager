@@ -25,7 +25,6 @@ import (
 	"io"
 	"io/ioutil"
 	"mime"
-	"mime/multipart"
 	"net"
 	"net/http"
 	"net/mail"
@@ -1069,38 +1068,58 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 			content = append(content, fmt.Sprintf("[%s] %s\n[详情] %s\n", statsMap[d.Status], d.Annotations["summary"], d.Annotations["description"]))
 		}
 		uri := w.QalarmUrl(content)
-		body, writer, err := genQalarmBody(uri)
+		body, err := genQalarmBody(uri)
 
 		if err != nil {
 			return true, err
 		}
 
-		resp, respErr = ctxhttp.Post(ctx, http.DefaultClient, w.URL, writer.FormDataContentType(), body)
+		/*
+			client, err := NewClientForTimeOut()
+			request, err := http.NewRequest("POST", w.URL, body)
+			log.Debugf("request: %s", request.Body)
+			//resp, err := ctxhttp.Get(ctx, c.httpClient, url.String())
+			request.Header.Add("content-type", "application/x-www-form-urlencoded; charset=utf-8")
+			resp, respErr = client.Do(request)
+		*/
+
+		resp, respErr = ctxhttp.Post(ctx, http.DefaultClient, w.URL, "application/x-www-form-urlencoded; charset=utf-8", body)
+		respBody, _ := ioutil.ReadAll(resp.Body)
 		if resp != nil && resp.Body != nil {
 			defer func() {
 				io.Copy(ioutil.Discard, resp.Body)
 				resp.Body.Close()
 			}()
 		}
-		defer resp.Body.Close()
+		log.Debugf("resp code %s, resp body %s: ", resp.Status, string(respBody))
 
 	} else {
 		content := fmt.Sprintf("[%s] %s\n[详情] %s\n", statsMap[data.Status], data.CommonAnnotations["summary"], data.CommonAnnotations["description"])
 		uri := w.QalarmUrl(content)
-		body, writer, err := genQalarmBody(uri)
+		body, err := genQalarmBody(uri)
 
 		if err != nil {
 			return true, err
 		}
 
-		resp, respErr = ctxhttp.Post(ctx, http.DefaultClient, w.URL, writer.FormDataContentType(), body)
+		/*
+			client, err := NewClientForTimeOut()
+			request, err := http.NewRequest("POST", w.URL, body)
+			log.Debugf("request: %s", request.Body)
+			//resp, err := ctxhttp.Get(ctx, c.httpClient, url.String())
+			request.Header.Add("content-type", "application/x-www-form-urlencoded; charset=utf-8")
+			resp, respErr = client.Do(request)
+		*/
+
+		resp, respErr = ctxhttp.Post(ctx, http.DefaultClient, w.URL, "application/x-www-form-urlencoded; charset=utf-8", body)
+		respBody, _ := ioutil.ReadAll(resp.Body)
 		if resp != nil && resp.Body != nil {
 			defer func() {
 				io.Copy(ioutil.Discard, resp.Body)
 				resp.Body.Close()
 			}()
 		}
-		defer resp.Body.Close()
+		log.Debugf("resp code %s, resp body %s: ", resp.Status, string(respBody))
 	}
 
 	if respErr != nil {
@@ -1123,21 +1142,15 @@ func (w *Qalarm) retry(statusCode int) (bool, error) {
 }
 
 // Add by zhaopeng-iri
-func genQalarmBody(uri string) (*bytes.Buffer, *multipart.Writer, error) {
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
+func genQalarmBody(uri string) (*bytes.Buffer, error) {
+	params := url.Values{}
 	for _, val := range strings.Split(uri, "&") {
 		t := strings.Split(val, "=")
-		_ = writer.WriteField(t[0], t[1])
+		params.Set(t[0], t[1])
 	}
-	err := writer.Close()
-	if err != nil {
-		log.Errorf("genarate qalarm body error: ", err)
-		return nil, nil, err
-	}
+	body := bytes.NewBufferString(params.Encode())
 
-	return body, writer, nil
+	return body, nil
 }
 
 // ADD by zhaopeng-iri
@@ -1188,7 +1201,6 @@ func (w *Qalarm) QalarmUrl(content interface{}) string {
 	q := u.Query()
 	q.Set("phones", w.Getphones())
 
-	//	q.Set("content", content)
 	var signStr string
 	q.Set("level", "2")
 	switch v := content.(type) {
@@ -1251,3 +1263,40 @@ func hashKey(s string) string {
 	h.Write([]byte(s))
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
+
+/*
+func NewClient(rt http.RoundTripper) *http.Client {
+	return &http.Client{Transport: rt}
+}
+
+func NewClientForTimeOut() (*http.Client, error) {
+
+	timeout := time.Duration(3 * time.Second)
+	var rt http.RoundTripper = NewDeadlineRoundTripper(timeout)
+
+	// Return a new client with the configured round tripper.
+	return NewClient(rt), nil
+}
+
+func NewDeadlineRoundTripper(timeout time.Duration) http.RoundTripper {
+	return &http.Transport{
+		DisableKeepAlives: true,
+		Dial: func(netw, addr string) (c net.Conn, err error) {
+			start := time.Now()
+
+			c, err = net.DialTimeout(netw, addr, timeout)
+			if err != nil {
+				return nil, err
+			}
+
+			//TODO 超时打点
+			if err = c.SetDeadline(start.Add(timeout)); err != nil {
+				c.Close()
+				return nil, err
+			}
+
+			return c, nil
+		},
+	}
+}
+*/
