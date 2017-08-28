@@ -1072,15 +1072,15 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 	//client, _ := NewClientForTimeOut()
 
 	groupKey, ok := GroupKey(ctx)
-	log.Infof("zhaopeng-iri data: %+v\n", data)
-	log.Infof("zhaopeng-iri data.Alerts: %+v\n", data.Alerts)
-	log.Infof("zhaopeng-iri data.CommonAnnotations: %+v\n", data.CommonAnnotations)
-	log.Infof("zhaopeng-iri data.CommonLabels: %+v\n", data.CommonLabels)
-	log.Infof("zhaopeng-iri data.ExternalURL: %+v\n", data.ExternalURL)
-	log.Infof("zhaopeng-iri data.GroupLabels: %+v\n", data.GroupLabels)
-	log.Infof("zhaopeng-iri data.Receiver: %+v\n", data.Receiver)
-	log.Infof("zhaopeng-iri data.Status: %+v\n", data.Status)
-	log.Infof("zhaopeng-iri groupKey:%+v\n ", groupKey)
+	log.Debugf("zhaopeng-iri data: %+v\n", data)
+	//log.Infof("zhaopeng-iri data.Alerts: %+v\n", data.Alerts)
+	log.Debugf("zhaopeng-iri data.CommonAnnotations: %+v\n", data.CommonAnnotations)
+	log.Debugf("zhaopeng-iri data.CommonLabels: %+v\n", data.CommonLabels)
+	log.Debugf("zhaopeng-iri data.ExternalURL: %+v\n", data.ExternalURL)
+	log.Debugf("zhaopeng-iri data.GroupLabels: %+v\n", data.GroupLabels)
+	log.Debugf("zhaopeng-iri data.Receiver: %+v\n", data.Receiver)
+	log.Debugf("zhaopeng-iri data.Status: %+v\n", data.Status)
+	log.Debugf("zhaopeng-iri groupKey:%+v\n ", groupKey)
 	if !ok {
 		log.Errorf("group key missing")
 	}
@@ -1101,12 +1101,12 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 		}
 
 		/*
-			client, err := NewClientForTimeOut()
-			request, err := http.NewRequest("POST", w.URL, body)
-			log.Debugf("request: %s", request.Body)
-			//resp, err := ctxhttp.Get(ctx, c.httpClient, url.String())
-			request.Header.Add("content-type", "application/x-www-form-urlencoded; charset=utf-8")
-			resp, respErr = client.Do(request)
+		   client, err := NewClientForTimeOut()
+		   request, err := http.NewRequest("POST", w.URL, body)
+		   log.Debugf("request: %s", request.Body)
+		   //resp, err := ctxhttp.Get(ctx, c.httpClient, url.String())
+		   request.Header.Add("content-type", "application/x-www-form-urlencoded; charset=utf-8")
+		   resp, respErr = client.Do(request)
 		*/
 
 		resp, respErr = ctxhttp.Post(ctx, http.DefaultClient, w.URL, "application/x-www-form-urlencoded; charset=utf-8", body)
@@ -1129,12 +1129,12 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 		}
 
 		/*
-			client, err := NewClientForTimeOut()
-			request, err := http.NewRequest("POST", w.URL, body)
-			log.Debugf("request: %s", request.Body)
-			//resp, err := ctxhttp.Get(ctx, c.httpClient, url.String())
-			request.Header.Add("content-type", "application/x-www-form-urlencoded; charset=utf-8")
-			resp, respErr = client.Do(request)
+		   client, err := NewClientForTimeOut()
+		   request, err := http.NewRequest("POST", w.URL, body)
+		   log.Debugf("request: %s", request.Body)
+		   //resp, err := ctxhttp.Get(ctx, c.httpClient, url.String())
+		   request.Header.Add("content-type", "application/x-www-form-urlencoded; charset=utf-8")
+		   resp, respErr = client.Do(request)
 		*/
 
 		resp, respErr = ctxhttp.Post(ctx, http.DefaultClient, w.URL, "application/x-www-form-urlencoded; charset=utf-8", body)
@@ -1278,7 +1278,7 @@ func (w *Qalarm) Getphones() string {
 	var wonder *Wonder
 	err = json.Unmarshal(body, &wonder)
 
-	log.Info(wonder.Data)
+	log.Debugf("phone numbers: %s", wonder.Data)
 	return strings.Join(wonder.Data, ",")
 }
 
@@ -1292,37 +1292,37 @@ func hashKey(s string) string {
 
 /*
 func NewClient(rt http.RoundTripper) *http.Client {
-	return &http.Client{Transport: rt}
+    return &http.Client{Transport: rt}
 }
 
 func NewClientForTimeOut() (*http.Client, error) {
 
-	timeout := time.Duration(3 * time.Second)
-	var rt http.RoundTripper = NewDeadlineRoundTripper(timeout)
+    timeout := time.Duration(3 * time.Second)
+    var rt http.RoundTripper = NewDeadlineRoundTripper(timeout)
 
-	// Return a new client with the configured round tripper.
-	return NewClient(rt), nil
+    // Return a new client with the configured round tripper.
+    return NewClient(rt), nil
 }
 
 func NewDeadlineRoundTripper(timeout time.Duration) http.RoundTripper {
-	return &http.Transport{
-		DisableKeepAlives: true,
-		Dial: func(netw, addr string) (c net.Conn, err error) {
-			start := time.Now()
+    return &http.Transport{
+        DisableKeepAlives: true,
+        Dial: func(netw, addr string) (c net.Conn, err error) {
+            start := time.Now()
 
-			c, err = net.DialTimeout(netw, addr, timeout)
-			if err != nil {
-				return nil, err
-			}
+            c, err = net.DialTimeout(netw, addr, timeout)
+            if err != nil {
+                return nil, err
+            }
 
-			//TODO 超时打点
-			if err = c.SetDeadline(start.Add(timeout)); err != nil {
-				c.Close()
-				return nil, err
-			}
+            //TODO 超时打点
+            if err = c.SetDeadline(start.Add(timeout)); err != nil {
+                c.Close()
+                return nil, err
+            }
 
-			return c, nil
-		},
-	}
+            return c, nil
+        },
+    }
 }
 */
