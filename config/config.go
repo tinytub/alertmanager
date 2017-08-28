@@ -14,6 +14,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -21,8 +22,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"encoding/json"
 
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
@@ -173,6 +172,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				}
 				ec.From = c.Global.SMTPFrom
 			}
+			if ec.Hello == "" {
+				ec.Hello = c.Global.SMTPHello
+			}
 			if ec.AuthUsername == "" {
 				ec.AuthUsername = c.Global.SMTPAuthUsername
 			}
@@ -244,6 +246,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if !strings.HasSuffix(voc.APIURL, "/") {
 				voc.APIURL += "/"
 			}
+			if voc.APIKey == "" {
+				if c.Global.VictorOpsAPIKey == "" {
+					return fmt.Errorf("no global VictorOps API Key set")
+				}
+				voc.APIKey = c.Global.VictorOpsAPIKey
+			}
 		}
 		names[rcv.Name] = struct{}{}
 	}
@@ -304,6 +312,7 @@ type GlobalConfig struct {
 	ResolveTimeout model.Duration `yaml:"resolve_timeout" json:"resolve_timeout"`
 
 	SMTPFrom         string `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
+	SMTPHello        string `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
 	SMTPSmarthost    string `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
 	SMTPAuthUsername string `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
 	SMTPAuthPassword Secret `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
@@ -316,6 +325,7 @@ type GlobalConfig struct {
 	HipchatAuthToken Secret `yaml:"hipchat_auth_token,omitempty" json:"hipchat_auth_token,omitempty"`
 	OpsGenieAPIHost  string `yaml:"opsgenie_api_host,omitempty" json:"opsgenie_api_host,omitempty"`
 	VictorOpsAPIURL  string `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
+	VictorOpsAPIKey  Secret `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`

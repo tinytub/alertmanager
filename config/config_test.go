@@ -131,7 +131,6 @@ func TestJSONUnmarshalMarshaled(t *testing.T) {
 }
 
 func TestEmptyFieldsAndRegex(t *testing.T) {
-
 	boolFoo := true
 	var regexpFoo Regexp
 	regexpFoo.Regexp, _ = regexp.Compile("^(?:^(foo1|foo2|baz)$)$")
@@ -203,5 +202,43 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 
 	if !reflect.DeepEqual(configGot, configExp) {
 		t.Fatalf("%s: unexpected config result: \n\n%s\n expected\n\n%s", "testdata/conf.empty-fields.yml", configGot, configExp)
+	}
+}
+
+func TestSMTPHello(t *testing.T) {
+	c, _, err := LoadFile("testdata/conf.good.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.good.yml", err)
+	}
+
+	const refValue = "host.example.org"
+	var hostName = c.Global.SMTPHello
+	if hostName != refValue {
+		t.Errorf("Invalid SMTP Hello hostname: %s\nExpected: %s", hostName, refValue)
+	}
+}
+
+func TestVictorOpsDefaultAPIKey(t *testing.T) {
+	conf, _, err := LoadFile("testdata/conf.victorops-default-apikey.yml")
+	if err != nil {
+		t.Errorf("Error parsing %s: %s", "testdata/conf.victorops-default-apikey.yml", err)
+	}
+
+	var defaultKey = conf.Global.VictorOpsAPIKey
+	if defaultKey != conf.Receivers[0].VictorOpsConfigs[0].APIKey {
+		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, defaultKey)
+	}
+	if defaultKey == conf.Receivers[1].VictorOpsConfigs[0].APIKey {
+		t.Errorf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, "qwe456")
+	}
+}
+
+func TestVictorOpsNoAPIKey(t *testing.T) {
+	_, _, err := LoadFile("testdata/conf.victorops-no-apikey.yml")
+	if err == nil {
+		t.Errorf("Expected an error parsing %s: %s", "testdata/conf.victorops-no-apikey.yml", err)
+	}
+	if err.Error() != "no global VictorOps API Key set" {
+		t.Errorf("Expected: %s\nGot: %s", "no global VictorOps API Key set", err.Error())
 	}
 }

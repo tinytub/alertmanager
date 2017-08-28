@@ -104,9 +104,10 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		MessageType:    `CRITICAL`,
-		StateMessage:   `{{ template "victorops.default.state_message" . }}`,
-		MonitoringTool: `{{ template "victorops.default.monitoring_tool" . }}`,
+		MessageType:       `CRITICAL`,
+		StateMessage:      `{{ template "victorops.default.state_message" . }}`,
+		EntityDisplayName: `{{ template "victorops.default.entity_display_name" . }}`,
+		MonitoringTool:    `{{ template "victorops.default.monitoring_tool" . }}`,
 	}
 
 	// DefaultPushoverConfig defines default values for Pushover configurations.
@@ -139,6 +140,7 @@ type EmailConfig struct {
 	// Email address to notify.
 	To           string            `yaml:"to,omitempty" json:"to,omitempty"`
 	From         string            `yaml:"from,omitempty" json:"from,omitempty"`
+	Hello        string            `yaml:"hello,omitempty" json:"hello,omitempty"`
 	Smarthost    string            `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
 	AuthUsername string            `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
 	AuthPassword Secret            `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
@@ -222,6 +224,7 @@ type SlackConfig struct {
 	Fallback  string `yaml:"fallback,omitempty" json:"fallback,omitempty"`
 	IconEmoji string `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
 	IconURL   string `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
+	LinkNames bool   `yaml:"link_names,omitempty" json:"link_names,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -327,12 +330,13 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 type VictorOpsConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	APIKey         Secret `yaml:"api_key,omitempty" json:"api_key,omitempty"`
-	APIURL         string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	RoutingKey     string `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
-	MessageType    string `yaml:"message_type,omitempty" json:"message_type,omitempty"`
-	StateMessage   string `yaml:"state_message,omitempty" json:"state_message,omitempty"`
-	MonitoringTool string `yaml:"monitoring_tool,omitempty" json:"monitoring_tool,omitempty"`
+	APIKey            Secret `yaml:"api_key" json:"api_key"`
+	APIURL            string `yaml:"api_url" json:"api_url"`
+	RoutingKey        string `yaml:"routing_key" json:"routing_key"`
+	MessageType       string `yaml:"message_type" json:"message_type"`
+	StateMessage      string `yaml:"state_message" json:"state_message"`
+	EntityDisplayName string `yaml:"entity_display_name" json:"entity_display_name"`
+	MonitoringTool    string `yaml:"monitoring_tool" json:"monitoring_tool"`
 
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
@@ -343,9 +347,6 @@ func (c *VictorOpsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	type plain VictorOpsConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
-	}
-	if c.APIKey == "" {
-		return fmt.Errorf("missing API key in VictorOps config")
 	}
 	if c.RoutingKey == "" {
 		return fmt.Errorf("missing Routing key in VictorOps config")

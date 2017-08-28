@@ -36,6 +36,7 @@ import (
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/version"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 
@@ -145,6 +146,8 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 
 const contentTypeJSON = "application/json"
 
+var userAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
+
 // Webhook implements a Notifier for generic webhooks.
 type Webhook struct {
 	// The URL to which notifications are sent.
@@ -186,7 +189,14 @@ func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, err
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, w.URL, contentTypeJSON, &buf)
+	req, err := http.NewRequest("POST", w.URL, &buf)
+	if err != nil {
+		return true, err
+	}
+	req.Header.Set("Content-Type", contentTypeJSON)
+	req.Header.Set("User-Agent", userAgentHeader)
+
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
 	if err != nil {
 		return true, err
 	}
@@ -289,6 +299,13 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		}
 	}
 	defer c.Quit()
+
+	if n.conf.Hello != "" {
+		err := c.Hello(n.conf.Hello)
+		if err != nil {
+			return true, err
+		}
+	}
 
 	// Global Config guarantees RequireTLS is not nil
 	if *n.conf.RequireTLS {
@@ -491,6 +508,7 @@ type slackReq struct {
 	Username    string            `json:"username,omitempty"`
 	IconEmoji   string            `json:"icon_emoji,omitempty"`
 	IconURL     string            `json:"icon_url,omitempty"`
+	LinkNames   bool              `json:"link_names,omitempty"`
 	Attachments []slackAttachment `json:"attachments"`
 }
 
@@ -535,6 +553,7 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		Username:    tmplText(n.conf.Username),
 		IconEmoji:   tmplText(n.conf.IconEmoji),
 		IconURL:     tmplText(n.conf.IconURL),
+		LinkNames:   n.conf.LinkNames,
 		Attachments: []slackAttachment{*attachment},
 	}
 	if err != nil {
@@ -787,10 +806,11 @@ const (
 )
 
 type victorOpsMessage struct {
-	MessageType    string `json:"message_type"`
-	EntityID       string `json:"entity_id"`
-	StateMessage   string `json:"state_message"`
-	MonitoringTool string `json:"monitoring_tool"`
+	MessageType       string `json:"message_type"`
+	EntityID          string `json:"entity_id"`
+	EntityDisplayName string `json:"entity_display_name"`
+	StateMessage      string `json:"state_message"`
+	MonitoringTool    string `json:"monitoring_tool"`
 }
 
 type victorOpsErrorResponse struct {
@@ -813,11 +833,12 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 
 	var err error
 	var (
-		alerts      = types.Alerts(as...)
-		data        = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
-		tmpl        = tmplText(n.tmpl, data, &err)
-		apiURL      = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, n.conf.RoutingKey)
-		messageType = n.conf.MessageType
+		alerts       = types.Alerts(as...)
+		data         = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+		tmpl         = tmplText(n.tmpl, data, &err)
+		apiURL       = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, n.conf.RoutingKey)
+		messageType  = n.conf.MessageType
+		stateMessage = tmpl(n.conf.StateMessage)
 	)
 
 	if alerts.Status() == model.AlertFiring && !victorOpsAllowedEvents[messageType] {
@@ -828,11 +849,16 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 		messageType = victorOpsEventResolve
 	}
 
+	if len(stateMessage) > 20480 {
+		stateMessage = stateMessage[0:20475] + "\n..."
+	}
+
 	msg := &victorOpsMessage{
-		MessageType:    messageType,
-		EntityID:       hashKey(key),
-		StateMessage:   tmpl(n.conf.StateMessage),
-		MonitoringTool: tmpl(n.conf.MonitoringTool),
+		MessageType:       messageType,
+		EntityID:          hashKey(key),
+		EntityDisplayName: tmpl(n.conf.EntityDisplayName),
+		StateMessage:      stateMessage,
+		MonitoringTool:    tmpl(n.conf.MonitoringTool),
 	}
 
 	if err != nil {

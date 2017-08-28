@@ -181,7 +181,7 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 		ConfigJSON  *config.Config    `json:"configJSON"`
 		VersionInfo map[string]string `json:"versionInfo"`
 		Uptime      time.Time         `json:"uptime"`
-		MeshStatus  meshStatus        `json:"meshStatus"`
+		MeshStatus  *meshStatus       `json:"meshStatus"`
 	}{
 		ConfigYAML: api.config.String(),
 		ConfigJSON: api.config,
@@ -214,9 +214,13 @@ type peerStatus struct {
 	UID      uint64 `json:"uid"`      // e.g. "14015114173033265000"
 }
 
-func getMeshStatus(api *API) meshStatus {
+func getMeshStatus(api *API) *meshStatus {
+	if api.mrouter == nil {
+		return nil
+	}
+
 	status := mesh.NewStatus(api.mrouter)
-	strippedStatus := meshStatus{
+	strippedStatus := &meshStatus{
 		Name:     status.Name,
 		NickName: status.NickName,
 		Peers:    make([]peerStatus, len(status.Peers)),
@@ -339,9 +343,10 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 
 		apiAlert := &dispatch.APIAlert{
-			Alert:     &a.Alert,
-			Status:    status,
-			Receivers: receivers,
+			Alert:       &a.Alert,
+			Status:      status,
+			Receivers:   receivers,
+			Fingerprint: a.Fingerprint().String(),
 		}
 
 		res = append(res, apiAlert)
