@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/tinytub/alertmanager/nflog/nflogpb"
 	"github.com/stretchr/testify/require"
+	pb "github.com/tinytub/alertmanager/nflog/nflogpb"
 )
 
 func TestNlogGC(t *testing.T) {

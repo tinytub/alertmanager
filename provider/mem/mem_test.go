@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/prometheus/common/model"
 	"github.com/tinytub/alertmanager/provider"
 	"github.com/tinytub/alertmanager/types"
-	"github.com/prometheus/common/model"
 )
 
 func init() {
