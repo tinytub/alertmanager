@@ -117,7 +117,7 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 
 	// ADD by zhaopeng-iri
 	for i, c := range nc.QalarmConfigs {
-		n := NewQalarm(c, tmpl)
+		n := NewQalarm(c, tmpl, logger)
 		add("qalarm", i, n, c)
 	}
 
@@ -1165,8 +1165,8 @@ type Qalarm struct {
 
 // NewQalarm returns a new Qalarm.
 // ADD by zhaopeng-iri
-func NewQalarm(conf *config.QalarmConfig, t *template.Template) *Qalarm {
-	return &Qalarm{URL: conf.URL, Appkey: conf.Appkey, Secret: conf.Secret, AlertGroup: conf.AlertGroup, tmpl: t}
+func NewQalarm(conf *config.QalarmConfig, t *template.Template, l log.Logger) *Qalarm {
+	return &Qalarm{URL: conf.URL, Appkey: conf.Appkey, Secret: conf.Secret, AlertGroup: conf.AlertGroup, tmpl: t, logger: l}
 }
 
 // QalarmMessage defines the JSON object send to qalarm endpoints.
@@ -1183,7 +1183,6 @@ type QalarmMessage struct {
 // ADD by zhaopeng-iri
 func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
 	data := w.tmpl.Data(receiverName(ctx, w.logger), groupLabels(ctx, w.logger), alerts...)
-
 	statsMap := map[string]string{
 		"firing":   "异常",
 		"resolved": "恢复",
