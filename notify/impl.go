@@ -38,6 +38,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
 	"golang.org/x/net/context"
@@ -1192,14 +1193,14 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 
 	groupKey, ok := GroupKey(ctx)
 	//log.Infof("zhaopeng-iri data.Alerts: %+v\n", data.Alerts)
-	level.Debug(w.logger).Log("zhaopeng-iri data: %+v\n", data)
-	level.Debug(w.logger).Log("zhaopeng-iri data.CommonAnnotations: %+v\n", data.CommonAnnotations)
-	level.Debug(w.logger).Log("zhaopeng-iri data.CommonLabels: %+v\n", data.CommonLabels)
-	level.Debug(w.logger).Log("zhaopeng-iri data.ExternalURL: %+v\n", data.ExternalURL)
-	level.Debug(w.logger).Log("zhaopeng-iri data.GroupLabels: %+v\n", data.GroupLabels)
-	level.Debug(w.logger).Log("zhaopeng-iri data.Receiver: %+v\n", data.Receiver)
-	level.Debug(w.logger).Log("zhaopeng-iri data.Status: %+v\n", data.Status)
-	level.Debug(w.logger).Log("zhaopeng-iri groupKey:%+v\n ", groupKey)
+	level.Debug(w.logger).Log("zhaopeng-iri data: ", data)
+	level.Debug(w.logger).Log("zhaopeng-iri data.CommonAnnotations: ", data.CommonAnnotations)
+	level.Debug(w.logger).Log("zhaopeng-iri data.CommonLabels: ", data.CommonLabels)
+	level.Debug(w.logger).Log("zhaopeng-iri data.ExternalURL: ", data.ExternalURL)
+	level.Debug(w.logger).Log("zhaopeng-iri data.GroupLabels: ", data.GroupLabels)
+	level.Debug(w.logger).Log("zhaopeng-iri data.Receiver: ", data.Receiver)
+	level.Debug(w.logger).Log("zhaopeng-iri data.Status: ", data.Status)
+	level.Debug(w.logger).Log("zhaopeng-iri groupKey: ", groupKey)
 	if !ok {
 		level.Error(w.logger).Log("msg", "group key missing")
 	}
