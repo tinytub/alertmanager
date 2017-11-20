@@ -27,10 +27,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/log"
-	pb "github.com/tinytub/alertmanager/nflog/nflogpb"
 	"github.com/weaveworks/mesh"
 )
 
@@ -283,8 +283,8 @@ func (l *nlog) run() {
 
 	f := func() error {
 		start := l.now()
-		l.logger.Info("running maintenance")
-		defer l.logger.With("duration", l.now().Sub(start)).Info("maintenance done")
+		level.Info(l.logger).Log("msg", "Running maintenance")
+		defer level.Info(l.logger).Log("msg", "Maintenance done", "duration", l.now().Sub(start))
 
 		if _, err := l.GC(); err != nil {
 			return err
@@ -310,7 +310,7 @@ Loop:
 			break Loop
 		case <-t.C:
 			if err := f(); err != nil {
-				l.logger.With("err", err).Error("running maintenance failed")
+				level.Error(l.logger).Log("msg", "Running maintenance failed", "err", err)
 			}
 		}
 	}
@@ -319,7 +319,7 @@ Loop:
 		return
 	}
 	if err := f(); err != nil {
-		l.logger.With("err", err).Error("creating shutdown snapshot failed")
+		level.Error(l.logger).Log("msg", "Creating shutdown snapshot failed", "err", err)
 	}
 }
 
@@ -359,9 +359,11 @@ func (l *nlog) Log(r *pb.Receiver, gkey string, firingAlerts, resolvedAlerts []u
 		},
 		ExpiresAt: now.Add(l.retention),
 	}
-	l.gossip.GossipBroadcast(gossipData{
-		key: e,
-	})
+	if l.gossip != nil {
+		l.gossip.GossipBroadcast(gossipData{
+			key: e,
+		})
+	}
 	l.st[key] = e
 
 	return nil

@@ -112,7 +112,7 @@ route:
   group_by: []
   group_wait:      1s
   group_interval:  1s
-  repeat_interval: 0s 
+  repeat_interval: 0s
 
 receivers:
 - name: "default"
@@ -283,7 +283,7 @@ global:
 route:
   receiver: "default"
   group_by: [alertname]
-  group_wait: 1s 
+  group_wait: 1s
   group_interval: 5s
 
 receivers:
@@ -397,6 +397,9 @@ receivers:
 	)
 	co2.Want(Between(7, 7.5),
 		Alert("alertname", "test", "lbl", "v2").Active(1),
+		Alert("alertname", "test", "lbl", "v3").Active(3),
+	)
+	co2.Want(Between(12, 12.5),
 		Alert("alertname", "test", "lbl", "v3").Active(3),
 	)
 

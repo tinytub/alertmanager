@@ -142,7 +142,7 @@ func TestSilencesSnapshot(t *testing.T) {
 		f, err := ioutil.TempFile("", "snapshot")
 		require.NoError(t, err, "creating temp file failed")
 
-		s1 := &Silences{st: newGossipData(), metrics: newMetrics(nil)}
+		s1 := &Silences{st: newGossipData(), metrics: newMetrics(nil, nil)}
 		// Setup internal state manually.
 		for _, e := range c.entries {
 			s1.st.data[e.Silence.Id] = e
@@ -434,7 +434,7 @@ func TestQState(t *testing.T) {
 
 	cases := []struct {
 		sil    *pb.Silence
-		states []SilenceState
+		states []types.SilenceState
 		keep   bool
 	}{
 		{
@@ -442,7 +442,7 @@ func TestQState(t *testing.T) {
 				StartsAt: now.Add(time.Minute),
 				EndsAt:   now.Add(time.Hour),
 			},
-			states: []SilenceState{StateActive, StateExpired},
+			states: []types.SilenceState{types.SilenceStateActive, types.SilenceStateExpired},
 			keep:   false,
 		},
 		{
@@ -450,7 +450,7 @@ func TestQState(t *testing.T) {
 				StartsAt: now.Add(time.Minute),
 				EndsAt:   now.Add(time.Hour),
 			},
-			states: []SilenceState{StatePending},
+			states: []types.SilenceState{types.SilenceStatePending},
 			keep:   true,
 		},
 		{
@@ -458,7 +458,7 @@ func TestQState(t *testing.T) {
 				StartsAt: now.Add(time.Minute),
 				EndsAt:   now.Add(time.Hour),
 			},
-			states: []SilenceState{StateExpired, StatePending},
+			states: []types.SilenceState{types.SilenceStateExpired, types.SilenceStatePending},
 			keep:   true,
 		},
 	}
@@ -778,6 +778,10 @@ func TestSilenceExpire(t *testing.T) {
 		},
 	}
 
+	count, err := s.CountState(types.SilenceStatePending)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+
 	require.NoError(t, s.expire("pending"))
 	require.NoError(t, s.expire("active"))
 
@@ -794,6 +798,11 @@ func TestSilenceExpire(t *testing.T) {
 		EndsAt:    now,
 		UpdatedAt: now,
 	}, sil)
+
+	count, err = s.CountState(types.SilenceStatePending)
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+
 	// Expiring a pending Silence should make the API return the
 	// SilenceStateExpired Silence state.
 	silenceState := types.CalcSilenceState(sil.StartsAt, sil.EndsAt)

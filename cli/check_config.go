@@ -10,10 +10,10 @@ import (
 
 // alertCmd represents the alert command
 var checkConfigCmd = &cobra.Command{
-	Use:   "check-config",
+	Use:   "check-config file1 [file2] ...",
 	Args:  cobra.MinimumNArgs(1),
-	Short: "Validate configuration files for correctness",
-	Long: `Validate configuration files for correctness
+	Short: "Validate alertmanager config files",
+	Long: `Validate alertmanager config files
 
 Will validate the syntax and schema for alertmanager config file
 and associated templates. Non existing templates will not trigger
@@ -39,7 +39,7 @@ func CheckConfig(args []string) error {
 		config, _, err := config.LoadFile(arg)
 		if err != nil {
 			fmt.Printf("  FAILED: %s\n", err)
-			failed += 1
+			failed++
 		} else {
 			fmt.Printf("  SUCCESS\n")
 		}
@@ -50,7 +50,7 @@ func CheckConfig(args []string) error {
 				_, err = template.FromGlobs(config.Templates...)
 				if err != nil {
 					fmt.Printf("  FAILED: %s\n", err)
-					failed += 1
+					failed++
 				} else {
 					fmt.Printf("  SUCCESS\n")
 				}
@@ -59,7 +59,7 @@ func CheckConfig(args []string) error {
 		fmt.Printf("\n")
 	}
 	if failed > 0 {
-		return fmt.Errorf("Failed to validate %d file(s).", failed)
+		return fmt.Errorf("failed to validate %d file(s)", failed)
 	}
 	return nil
 }

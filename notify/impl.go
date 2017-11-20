@@ -30,22 +30,22 @@ import (
 	"net/http"
 	"net/mail"
 	"net/smtp"
+	"net/textproto"
 	"net/url"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/prometheus/common/log"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 
-	"net/textproto"
-
-	"github.com/tinytub/alertmanager/config"
-	"github.com/tinytub/alertmanager/template"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/types"
 )
 
 type notifierConfig interface {
@@ -92,7 +92,7 @@ func (i *Integration) Notify(ctx context.Context, alerts ...*types.Alert) (bool,
 
 // BuildReceiverIntegrations builds a list of integration notifiers off of a
 // receivers config.
-func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []Integration {
+func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, logger log.Logger) []Integration {
 	var (
 		integrations []Integration
 		add          = func(name string, i int, n Notifier, nc notifierConfig) {
@@ -106,11 +106,11 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 	)
 
 	for i, c := range nc.WebhookConfigs {
-		n := NewWebhook(c, tmpl)
+		n := NewWebhook(c, tmpl, logger)
 		add("webhook", i, n, c)
 	}
 	for i, c := range nc.EmailConfigs {
-		n := NewEmail(c, tmpl)
+		n := NewEmail(c, tmpl, logger)
 		add("email", i, n, c)
 	}
 
@@ -121,27 +121,27 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template) []I
 	}
 
 	for i, c := range nc.PagerdutyConfigs {
-		n := NewPagerDuty(c, tmpl)
+		n := NewPagerDuty(c, tmpl, logger)
 		add("pagerduty", i, n, c)
 	}
 	for i, c := range nc.OpsGenieConfigs {
-		n := NewOpsGenie(c, tmpl)
+		n := NewOpsGenie(c, tmpl, logger)
 		add("opsgenie", i, n, c)
 	}
 	for i, c := range nc.SlackConfigs {
-		n := NewSlack(c, tmpl)
+		n := NewSlack(c, tmpl, logger)
 		add("slack", i, n, c)
 	}
 	for i, c := range nc.HipchatConfigs {
-		n := NewHipchat(c, tmpl)
+		n := NewHipchat(c, tmpl, logger)
 		add("hipchat", i, n, c)
 	}
 	for i, c := range nc.VictorOpsConfigs {
-		n := NewVictorOps(c, tmpl)
+		n := NewVictorOps(c, tmpl, logger)
 		add("victorops", i, n, c)
 	}
 	for i, c := range nc.PushoverConfigs {
-		n := NewPushover(c, tmpl)
+		n := NewPushover(c, tmpl, logger)
 		add("pushover", i, n, c)
 	}
 	return integrations
@@ -154,13 +154,14 @@ var userAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 // Webhook implements a Notifier for generic webhooks.
 type Webhook struct {
 	// The URL to which notifications are sent.
-	URL  string
-	tmpl *template.Template
+	URL    string
+	tmpl   *template.Template
+	logger log.Logger
 }
 
 // NewWebhook returns a new Webhook.
-func NewWebhook(conf *config.WebhookConfig, t *template.Template) *Webhook {
-	return &Webhook{URL: conf.URL, tmpl: t}
+func NewWebhook(conf *config.WebhookConfig, t *template.Template, l log.Logger) *Webhook {
+	return &Webhook{URL: conf.URL, tmpl: t, logger: l}
 }
 
 // WebhookMessage defines the JSON object send to webhook endpoints.
@@ -174,11 +175,11 @@ type WebhookMessage struct {
 
 // Notify implements the Notifier interface.
 func (w *Webhook) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
-	data := w.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
+	data := w.tmpl.Data(receiverName(ctx, w.logger), groupLabels(ctx, w.logger), alerts...)
 
 	groupKey, ok := GroupKey(ctx)
 	if !ok {
-		log.Errorf("group key missing")
+		level.Error(w.logger).Log("msg", "group key missing")
 	}
 
 	msg := &WebhookMessage{
@@ -220,12 +221,13 @@ func (w *Webhook) retry(statusCode int) (bool, error) {
 
 // Email implements a Notifier for email notifications.
 type Email struct {
-	conf *config.EmailConfig
-	tmpl *template.Template
+	conf   *config.EmailConfig
+	tmpl   *template.Template
+	logger log.Logger
 }
 
 // NewEmail returns a new Email notifier.
-func NewEmail(c *config.EmailConfig, t *template.Template) *Email {
+func NewEmail(c *config.EmailConfig, t *template.Template, l log.Logger) *Email {
 	if _, ok := c.Headers["Subject"]; !ok {
 		c.Headers["Subject"] = config.DefaultEmailSubject
 	}
@@ -235,7 +237,7 @@ func NewEmail(c *config.EmailConfig, t *template.Template) *Email {
 	if _, ok := c.Headers["From"]; !ok {
 		c.Headers["From"] = c.From
 	}
-	return &Email{conf: c, tmpl: t}
+	return &Email{conf: c, tmpl: t, logger: l}
 }
 
 // auth resolves a string of authentication mechanisms.
@@ -334,7 +336,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 
 	var (
-		data = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+		data = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 		tmpl = tmplText(n.tmpl, data, &err)
 		from = tmpl(n.conf.From)
 		to   = tmpl(n.conf.To)
@@ -431,13 +433,14 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 // PagerDuty implements a Notifier for PagerDuty notifications.
 type PagerDuty struct {
-	conf *config.PagerdutyConfig
-	tmpl *template.Template
+	conf   *config.PagerdutyConfig
+	tmpl   *template.Template
+	logger log.Logger
 }
 
 // NewPagerDuty returns a new PagerDuty notifier.
-func NewPagerDuty(c *config.PagerdutyConfig, t *template.Template) *PagerDuty {
-	return &PagerDuty{conf: c, tmpl: t}
+func NewPagerDuty(c *config.PagerdutyConfig, t *template.Template, l log.Logger) *PagerDuty {
+	return &PagerDuty{conf: c, tmpl: t, logger: l}
 }
 
 const (
@@ -446,55 +449,45 @@ const (
 )
 
 type pagerDutyMessage struct {
-	ServiceKey  string            `json:"service_key"`
-	IncidentKey string            `json:"incident_key"`
-	EventType   string            `json:"event_type"`
-	Description string            `json:"description"`
+	RoutingKey  string            `json:"routing_key,omitempty"`
+	ServiceKey  string            `json:"service_key,omitempty"`
+	DedupKey    string            `json:"dedup_key,omitempty"`
+	IncidentKey string            `json:"incident_key,omitempty"`
+	EventType   string            `json:"event_type,omitempty"`
+	Description string            `json:"description,omitempty"`
+	EventAction string            `json:"event_action"`
+	Payload     *pagerDutyPayload `json:"payload"`
 	Client      string            `json:"client,omitempty"`
 	ClientURL   string            `json:"client_url,omitempty"`
 	Details     map[string]string `json:"details,omitempty"`
 }
 
-// Notify implements the Notifier interface.
-//
-// http://developer.pagerduty.com/documentation/integration/events/trigger
-func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
-	key, ok := GroupKey(ctx)
-	if !ok {
-		return false, fmt.Errorf("group key missing")
-	}
+type pagerDutyPayload struct {
+	Summary       string            `json:"summary"`
+	Source        string            `json:"source"`
+	Severity      string            `json:"severity"`
+	Timestamp     string            `json:"timestamp,omitempty"`
+	Component     string            `json:"component,omitempty"`
+	Group         string            `json:"group,omitempty"`
+	CustomDetails map[string]string `json:"custom_details,omitempty"`
+}
 
-	var err error
-	var (
-		alerts    = types.Alerts(as...)
-		data      = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
-		tmpl      = tmplText(n.tmpl, data, &err)
-		eventType = pagerDutyEventTrigger
-	)
-	if alerts.Status() == model.AlertResolved {
-		eventType = pagerDutyEventResolve
-	}
-
-	log.With("incident", key).With("eventType", eventType).Debugln("notifying PagerDuty")
-
-	details := make(map[string]string, len(n.conf.Details))
-	for k, v := range n.conf.Details {
-		details[k] = tmpl(v)
-	}
+func (n *PagerDuty) notifyV1(ctx context.Context, eventType, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
+	level.Info(n.logger).Log("msg", "PagerDuty v1 API will no longer be supported: https://v2.developer.pagerduty.com/v2/docs/api-v2-frequently-asked-questions")
 
 	msg := &pagerDutyMessage{
-		ServiceKey:  tmpl(string(n.conf.ServiceKey)),
+		ServiceKey:  string(n.conf.ServiceKey),
 		EventType:   eventType,
 		IncidentKey: hashKey(key),
 		Description: tmpl(n.conf.Description),
 		Details:     details,
 	}
+
+	n.conf.URL = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
+
 	if eventType == pagerDutyEventTrigger {
 		msg.Client = tmpl(n.conf.Client)
 		msg.ClientURL = tmpl(n.conf.ClientURL)
-	}
-	if err != nil {
-		return false, err
 	}
 
 	var buf bytes.Buffer
@@ -506,12 +499,92 @@ func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	if err != nil {
 		return true, err
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
 
-	return n.retry(resp.StatusCode)
+	return n.retryV1(resp.StatusCode)
 }
 
-func (n *PagerDuty) retry(statusCode int) (bool, error) {
+func (n *PagerDuty) notifyV2(ctx context.Context, eventType, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
+	if n.conf.Severity == "" {
+		n.conf.Severity = "error"
+	}
+
+	var payload *pagerDutyPayload
+	if eventType == pagerDutyEventTrigger {
+		payload = &pagerDutyPayload{
+			Summary:       tmpl(n.conf.Description),
+			Source:        n.conf.Client,
+			Severity:      n.conf.Severity,
+			CustomDetails: details,
+			Component:     n.conf.Component,
+			Group:         n.conf.Group,
+		}
+	}
+
+	msg := &pagerDutyMessage{
+		RoutingKey:  string(n.conf.RoutingKey),
+		EventAction: eventType,
+		DedupKey:    hashKey(key),
+		Payload:     payload,
+	}
+
+	if eventType == pagerDutyEventTrigger {
+		msg.Client = tmpl(n.conf.Client)
+		msg.ClientURL = tmpl(n.conf.ClientURL)
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return false, err
+	}
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, n.conf.URL, contentTypeJSON, &buf)
+	if err != nil {
+		return true, err
+	}
+	defer resp.Body.Close()
+
+	return n.retryV2(resp.StatusCode)
+}
+
+// Notify implements the Notifier interface.
+//
+// https://v2.developer.pagerduty.com/docs/events-api-v2
+func (n *PagerDuty) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return false, fmt.Errorf("group key missing")
+	}
+
+	var err error
+	var (
+		alerts    = types.Alerts(as...)
+		data      = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+		tmpl      = tmplText(n.tmpl, data, &err)
+		eventType = pagerDutyEventTrigger
+	)
+	if alerts.Status() == model.AlertResolved {
+		eventType = pagerDutyEventResolve
+	}
+
+	level.Debug(n.logger).Log("msg", "Notifying PagerDuty", "incident", key, "eventType", eventType)
+
+	details := make(map[string]string, len(n.conf.Details))
+	for k, v := range n.conf.Details {
+		details[k] = tmpl(v)
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	if n.conf.ServiceKey != "" {
+		return n.notifyV1(ctx, eventType, key, tmpl, details, as...)
+	}
+	return n.notifyV2(ctx, eventType, key, tmpl, details, as...)
+}
+
+func (n *PagerDuty) retryV1(statusCode int) (bool, error) {
 	// Retrying can solve the issue on 403 (rate limiting) and 5xx response codes.
 	// 2xx response codes indicate a successful request.
 	// https://v2.developer.pagerduty.com/docs/trigger-events
@@ -522,17 +595,30 @@ func (n *PagerDuty) retry(statusCode int) (bool, error) {
 	return false, nil
 }
 
+func (n *PagerDuty) retryV2(statusCode int) (bool, error) {
+	// Retrying can solve the issue on 429 (rate limiting) and 5xx response codes.
+	// 2xx response codes indicate a successful request.
+	// https://v2.developer.pagerduty.com/docs/events-api-v2#api-response-codes--retry-logic
+	if statusCode/100 != 2 {
+		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	}
+
+	return false, nil
+}
+
 // Slack implements a Notifier for Slack notifications.
 type Slack struct {
-	conf *config.SlackConfig
-	tmpl *template.Template
+	conf   *config.SlackConfig
+	tmpl   *template.Template
+	logger log.Logger
 }
 
 // NewSlack returns a new Slack notification handler.
-func NewSlack(conf *config.SlackConfig, tmpl *template.Template) *Slack {
+func NewSlack(c *config.SlackConfig, t *template.Template, l log.Logger) *Slack {
 	return &Slack{
-		conf: conf,
-		tmpl: tmpl,
+		conf:   c,
+		tmpl:   t,
+		logger: l,
 	}
 }
 
@@ -569,7 +655,7 @@ type slackAttachmentField struct {
 func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	var err error
 	var (
-		data     = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+		data     = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
 	)
 
@@ -621,15 +707,17 @@ func (n *Slack) retry(statusCode int) (bool, error) {
 
 // Hipchat implements a Notifier for Hipchat notifications.
 type Hipchat struct {
-	conf *config.HipchatConfig
-	tmpl *template.Template
+	conf   *config.HipchatConfig
+	tmpl   *template.Template
+	logger log.Logger
 }
 
 // NewHipchat returns a new Hipchat notification handler.
-func NewHipchat(conf *config.HipchatConfig, tmpl *template.Template) *Hipchat {
+func NewHipchat(c *config.HipchatConfig, t *template.Template, l log.Logger) *Hipchat {
 	return &Hipchat{
-		conf: conf,
-		tmpl: tmpl,
+		conf:   c,
+		tmpl:   t,
+		logger: l,
 	}
 }
 
@@ -646,7 +734,7 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) 
 	var err error
 	var msg string
 	var (
-		data     = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+		data     = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 		tmplText = tmplText(n.tmpl, data, &err)
 		tmplHTML = tmplHTML(n.tmpl, data, &err)
 		url      = fmt.Sprintf("%sv2/room/%s/notification?auth_token=%s", n.conf.APIURL, n.conf.RoomID, n.conf.AuthToken)
@@ -697,39 +785,30 @@ func (n *Hipchat) retry(statusCode int) (bool, error) {
 
 // OpsGenie implements a Notifier for OpsGenie notifications.
 type OpsGenie struct {
-	conf *config.OpsGenieConfig
-	tmpl *template.Template
+	conf   *config.OpsGenieConfig
+	tmpl   *template.Template
+	logger log.Logger
 }
 
 // NewOpsGenie returns a new OpsGenie notifier.
-func NewOpsGenie(c *config.OpsGenieConfig, t *template.Template) *OpsGenie {
-	return &OpsGenie{conf: c, tmpl: t}
-}
-
-type opsGenieMessage struct {
-	APIKey string `json:"apiKey"`
-	Alias  string `json:"alias"`
+func NewOpsGenie(c *config.OpsGenieConfig, t *template.Template, l log.Logger) *OpsGenie {
+	return &OpsGenie{conf: c, tmpl: t, logger: l}
 }
 
 type opsGenieCreateMessage struct {
-	*opsGenieMessage `json:",inline"`
-
-	Message     string            `json:"message"`
-	Description string            `json:"description,omitempty"`
-	Details     map[string]string `json:"details"`
-	Source      string            `json:"source"`
-	Teams       string            `json:"teams,omitempty"`
-	Tags        string            `json:"tags,omitempty"`
-	Note        string            `json:"note,omitempty"`
+	Alias       string              `json:"alias"`
+	Message     string              `json:"message"`
+	Description string              `json:"description,omitempty"`
+	Details     map[string]string   `json:"details"`
+	Source      string              `json:"source"`
+	Teams       []map[string]string `json:"teams,omitempty"`
+	Tags        []string            `json:"tags,omitempty"`
+	Note        string              `json:"note,omitempty"`
+	Priority    string              `json:"priority,omitempty"`
 }
 
 type opsGenieCloseMessage struct {
-	*opsGenieMessage `json:",inline"`
-}
-
-type opsGenieErrorResponse struct {
-	Code  int    `json:"code"`
-	Error string `json:"error"`
+	Source string `json:"source"`
 }
 
 // Notify implements the Notifier interface.
@@ -738,9 +817,9 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if !ok {
 		return false, fmt.Errorf("group key missing")
 	}
-	data := n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+	data := n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 
-	log.With("incident", key).Debugln("notifying OpsGenie")
+	level.Debug(n.logger).Log("msg", "Notifying OpsGenie", "incident", key)
 
 	var err error
 	tmpl := tmplText(n.tmpl, data, &err)
@@ -753,28 +832,35 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	var (
 		msg    interface{}
 		apiURL string
-
-		apiMsg = opsGenieMessage{
-			APIKey: string(n.conf.APIKey),
-			Alias:  hashKey(key),
-		}
+		alias  = hashKey(key)
 		alerts = types.Alerts(as...)
 	)
 	switch alerts.Status() {
 	case model.AlertResolved:
-		apiURL = n.conf.APIHost + "v1/json/alert/close"
-		msg = &opsGenieCloseMessage{&apiMsg}
+		apiURL = fmt.Sprintf("%sv2/alerts/%s/close?identifierType=alias", n.conf.APIURL, alias)
+		msg = &opsGenieCloseMessage{Source: tmpl(n.conf.Source)}
 	default:
-		apiURL = n.conf.APIHost + "v1/json/alert"
+		message := tmpl(n.conf.Message)
+		if len(message) > 130 {
+			message = message[:127] + "..."
+			level.Debug(n.logger).Log("msg", "Truncated message to %q due to OpsGenie message limit", "truncated_message", message, "incident", key)
+		}
+
+		apiURL = n.conf.APIURL + "v2/alerts"
+		var teams []map[string]string
+		for _, t := range strings.Split(string(tmpl(n.conf.Teams)), ",") {
+			teams = append(teams, map[string]string{"name": t})
+		}
 		msg = &opsGenieCreateMessage{
-			opsGenieMessage: &apiMsg,
-			Message:         tmpl(n.conf.Message),
-			Description:     tmpl(n.conf.Description),
-			Details:         details,
-			Source:          tmpl(n.conf.Source),
-			Teams:           tmpl(n.conf.Teams),
-			Tags:            tmpl(n.conf.Tags),
-			Note:            tmpl(n.conf.Note),
+			Alias:       alias,
+			Message:     message,
+			Description: tmpl(n.conf.Description),
+			Details:     details,
+			Source:      tmpl(n.conf.Source),
+			Teams:       teams,
+			Tags:        strings.Split(string(tmpl(n.conf.Tags)), ","),
+			Note:        tmpl(n.conf.Note),
+			Priority:    tmpl(n.conf.Priority),
 		}
 	}
 	if err != nil {
@@ -786,51 +872,48 @@ func (n *OpsGenie) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	resp, err := ctxhttp.Post(ctx, http.DefaultClient, apiURL, contentTypeJSON, &buf)
+	req, err := http.NewRequest("POST", apiURL, &buf)
+	if err != nil {
+		return true, err
+	}
+	req.Header.Set("Content-Type", contentTypeJSON)
+	req.Header.Set("Authorization", fmt.Sprintf("GenieKey %s", n.conf.APIKey))
+
+	resp, err := ctxhttp.Do(ctx, http.DefaultClient, req)
+
 	if err != nil {
 		return true, err
 	}
 	defer resp.Body.Close()
 
-	// Missing documentation therefore assuming only 5xx response codes are
-	// recoverable.
-	if resp.StatusCode/100 == 5 {
-		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
-	} else if resp.StatusCode == 400 && alerts.Status() == model.AlertResolved {
-		body, _ := ioutil.ReadAll(resp.Body)
+	return n.retry(resp.StatusCode)
+}
 
-		var responseMessage opsGenieErrorResponse
-		if err := json.Unmarshal(body, &responseMessage); err != nil {
-			return false, fmt.Errorf("could not parse error response %q", body)
-		}
-		const alreadyClosedError = 5
-		if responseMessage.Code == alreadyClosedError {
-			return false, nil
-		}
-		return false, fmt.Errorf("error when closing alert: code %d, error %q",
-			responseMessage.Code, responseMessage.Error)
-	} else if resp.StatusCode/100 == 4 {
-		return false, fmt.Errorf("unexpected status code %v", resp.StatusCode)
-	} else if resp.StatusCode/100 != 2 {
-		body, _ := ioutil.ReadAll(resp.Body)
-		log.With("incident", key).Debugf("unexpected OpsGenie response from %s (POSTed %s), %s: %s",
-			apiURL, msg, resp.Status, body)
-		return false, fmt.Errorf("unexpected status code %v", resp.StatusCode)
+func (n *OpsGenie) retry(statusCode int) (bool, error) {
+	// https://docs.opsgenie.com/docs/response#section-response-codes
+	// Response codes 429 (rate limiting) and 5xx are potentially recoverable
+	if statusCode/100 == 5 || statusCode == 429 {
+		return true, fmt.Errorf("unexpected status code %v", statusCode)
+	} else if statusCode/100 != 2 {
+		return false, fmt.Errorf("unexpected status code %v", statusCode)
 	}
+
 	return false, nil
 }
 
 // VictorOps implements a Notifier for VictorOps notifications.
 type VictorOps struct {
-	conf *config.VictorOpsConfig
-	tmpl *template.Template
+	conf   *config.VictorOpsConfig
+	tmpl   *template.Template
+	logger log.Logger
 }
 
 // NewVictorOps returns a new VictorOps notifier.
-func NewVictorOps(c *config.VictorOpsConfig, t *template.Template) *VictorOps {
+func NewVictorOps(c *config.VictorOpsConfig, t *template.Template, l log.Logger) *VictorOps {
 	return &VictorOps{
-		conf: c,
-		tmpl: t,
+		conf:   c,
+		tmpl:   t,
+		logger: l,
 	}
 }
 
@@ -868,10 +951,10 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 	var err error
 	var (
 		alerts       = types.Alerts(as...)
-		data         = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+		data         = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 		tmpl         = tmplText(n.tmpl, data, &err)
-		apiURL       = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, n.conf.RoutingKey)
-		messageType  = n.conf.MessageType
+		apiURL       = fmt.Sprintf("%s%s/%s", n.conf.APIURL, n.conf.APIKey, tmpl(n.conf.RoutingKey))
+		messageType  = tmpl(n.conf.MessageType)
 		stateMessage = tmpl(n.conf.StateMessage)
 	)
 
@@ -885,6 +968,7 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 
 	if len(stateMessage) > 20480 {
 		stateMessage = stateMessage[0:20475] + "\n..."
+		level.Debug(n.logger).Log("msg", "Truncated stateMessage due to VictorOps stateMessage limit", "truncated_state_message", stateMessage, "incident", key)
 	}
 
 	msg := &victorOpsMessage{
@@ -911,24 +995,16 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 
 	defer resp.Body.Close()
 
+	return n.retry(resp.StatusCode)
+}
+
+func (n *VictorOps) retry(statusCode int) (bool, error) {
 	// Missing documentation therefore assuming only 5xx response codes are
 	// recoverable.
-	if resp.StatusCode/100 == 5 {
-		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
-	}
-
-	if resp.StatusCode/100 != 2 {
-		body, _ := ioutil.ReadAll(resp.Body)
-
-		var responseMessage victorOpsErrorResponse
-		if err := json.Unmarshal(body, &responseMessage); err != nil {
-			return false, fmt.Errorf("could not parse error response %q", body)
-		}
-
-		log.With("incident", key).Debugf("unexpected VictorOps response from %s (POSTed %s), %s: %s", apiURL, msg, resp.Status, body)
-
-		return false, fmt.Errorf("error when posting alert: result %q, message %q",
-			responseMessage.Result, responseMessage.Message)
+	if statusCode/100 == 5 {
+		return true, fmt.Errorf("unexpected status code %v", statusCode)
+	} else if statusCode/100 != 2 {
+		return false, fmt.Errorf("unexpected status code %v", statusCode)
 	}
 
 	return false, nil
@@ -936,13 +1012,14 @@ func (n *VictorOps) Notify(ctx context.Context, as ...*types.Alert) (bool, error
 
 // Pushover implements a Notifier for Pushover notifications.
 type Pushover struct {
-	conf *config.PushoverConfig
-	tmpl *template.Template
+	conf   *config.PushoverConfig
+	tmpl   *template.Template
+	logger log.Logger
 }
 
 // NewPushover returns a new Pushover notifier.
-func NewPushover(c *config.PushoverConfig, t *template.Template) *Pushover {
-	return &Pushover{conf: c, tmpl: t}
+func NewPushover(c *config.PushoverConfig, t *template.Template, l log.Logger) *Pushover {
+	return &Pushover{conf: c, tmpl: t, logger: l}
 }
 
 // Notify implements the Notifier interface.
@@ -951,9 +1028,9 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if !ok {
 		return false, fmt.Errorf("group key missing")
 	}
-	data := n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
+	data := n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
 
-	log.With("incident", key).Debugln("notifying Pushover")
+	level.Debug(n.logger).Log("msg", "Notifying Pushover", "incident", key)
 
 	var err error
 	tmpl := tmplText(n.tmpl, data, &err)
@@ -961,16 +1038,18 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	parameters := url.Values{}
 	parameters.Add("token", tmpl(string(n.conf.Token)))
 	parameters.Add("user", tmpl(string(n.conf.UserKey)))
+
 	title := tmpl(n.conf.Title)
-	message := tmpl(n.conf.Message)
-	parameters.Add("title", title)
-	if len(title) > 512 {
-		title = title[:512]
-		log.With("incident", key).Debugf("Truncated title to %q due to Pushover message limit", title)
+	if len(title) > 250 {
+		title = title[:247] + "..."
+		level.Debug(n.logger).Log("msg", "Truncated title due to Pushover title limit", "truncated_title", title, "incident", key)
 	}
-	if len(title)+len(message) > 512 {
-		message = message[:512-len(title)]
-		log.With("incident", key).Debugf("Truncated message to %q due to Pushover message limit", message)
+	parameters.Add("title", title)
+
+	message := tmpl(n.conf.Message)
+	if len(message) > 1024 {
+		message = message[:1021] + "..."
+		level.Debug(n.logger).Log("msg", "Truncated message due to Pushover message limit", "truncated_message", message, "incident", key)
 	}
 	message = strings.TrimSpace(message)
 	if message == "" {
@@ -978,7 +1057,14 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		message = "(no details)"
 	}
 	parameters.Add("message", message)
-	parameters.Add("url", tmpl(n.conf.URL))
+
+	supplementaryURL := tmpl(n.conf.URL)
+	if len(supplementaryURL) > 512 {
+		supplementaryURL = supplementaryURL[:509] + "..."
+		level.Debug(n.logger).Log("msg", "Truncated URL due to Pushover url limit", "truncated_url", supplementaryURL, "incident", key)
+	}
+	parameters.Add("url", supplementaryURL)
+
 	parameters.Add("priority", tmpl(n.conf.Priority))
 	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
 	parameters.Add("expire", fmt.Sprintf("%d", int64(time.Duration(n.conf.Expire).Seconds())))
@@ -992,7 +1078,7 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 	u.RawQuery = parameters.Encode()
-	log.With("incident", key).Debugf("Pushover URL = %q", u.String())
+	level.Debug(n.logger).Log("msg", "Sending Pushover message", "incident", key, "url", u.String())
 
 	resp, err := ctxhttp.Post(ctx, http.DefaultClient, u.String(), "text/plain", nil)
 	if err != nil {
@@ -1000,19 +1086,17 @@ func (n *Pushover) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 	defer resp.Body.Close()
 
+	return n.retry(resp.StatusCode)
+}
+
+func (n *Pushover) retry(statusCode int) (bool, error) {
 	// Only documented behaviour is that 2xx response codes are successful and
 	// 4xx are unsuccessful, therefore assuming only 5xx are recoverable.
 	// https://pushover.net/api#response
-	if resp.StatusCode/100 == 5 {
-		return true, fmt.Errorf("unexpected status code %v", resp.StatusCode)
-	}
-
-	if resp.StatusCode/100 != 2 {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return false, err
-		}
-		return false, fmt.Errorf("unexpected status code %v (body: %s)", resp.StatusCode, string(body))
+	if statusCode/100 == 5 {
+		return true, fmt.Errorf("unexpected status code %v", statusCode)
+	} else if statusCode/100 != 2 {
+		return false, fmt.Errorf("unexpected status code %v", statusCode)
 	}
 
 	return false, nil

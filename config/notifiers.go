@@ -184,12 +184,16 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type PagerdutyConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
-	ServiceKey  Secret            `yaml:"service_key,omitempty" json:"service_key,omitempty"`
+	ServiceKey  Secret            `yaml:"service_key,omitempty" json"service_key,omitempty"`
+	RoutingKey  Secret            `yaml:"routing_key,omitempty" json:"routing_key,omitempty"`
 	URL         string            `yaml:"url,omitempty" json:"url,omitempty"`
 	Client      string            `yaml:"client,omitempty" json:"client,omitempty"`
 	ClientURL   string            `yaml:"client_url,omitempty" json:"client_url,omitempty"`
 	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
 	Details     map[string]string `yaml:"details,omitempty" json:"details,omitempty"`
+	Severity    string            `yaml:"severity,omitempty" json:"severity,omitempty"`
+	Component   string            `yaml:"component,omitempty" json:"component,omitempty"`
+	Group       string            `yaml:"group,omitempty" json:"group,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -202,8 +206,8 @@ func (c *PagerdutyConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.ServiceKey == "" {
-		return fmt.Errorf("missing service key in PagerDuty config")
+	if c.RoutingKey == "" && c.ServiceKey == "" {
+		return fmt.Errorf("missing service or routing key in PagerDuty config")
 	}
 	return checkOverflow(c.XXX, "pagerduty config")
 }
@@ -302,7 +306,7 @@ type OpsGenieConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
 
 	APIKey      Secret            `yaml:"api_key,omitempty" json:"api_key,omitempty"`
-	APIHost     string            `yaml:"api_host,omitempty" json:"api_host,omitempty"`
+	APIURL      string            `yaml:"api_url,omitempty" json:"api_url,omitempty"`
 	Message     string            `yaml:"message,omitempty" json:"message,omitempty"`
 	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
 	Source      string            `yaml:"source,omitempty" json:"source,omitempty"`
@@ -310,6 +314,7 @@ type OpsGenieConfig struct {
 	Teams       string            `yaml:"teams,omitempty" json:"teams,omitempty"`
 	Tags        string            `yaml:"tags,omitempty" json:"tags,omitempty"`
 	Note        string            `yaml:"note,omitempty" json:"note,omitempty"`
+	Priority    string            `yaml:"priority,omitempty" json:"priority,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
