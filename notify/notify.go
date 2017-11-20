@@ -27,10 +27,10 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/tinytub/alertmanager/config"
 	"github.com/tinytub/alertmanager/inhibit"
 	"github.com/tinytub/alertmanager/nflog"
-	"github.com/tinytub/alertmanager/nflog/nflogpb"
 	"github.com/tinytub/alertmanager/silence"
 	"github.com/tinytub/alertmanager/template"
 	"github.com/tinytub/alertmanager/types"

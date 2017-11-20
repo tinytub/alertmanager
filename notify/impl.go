@@ -43,9 +43,9 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 
-	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
+	"github.com/tinytub/alertmanager/config"
+	"github.com/tinytub/alertmanager/template"
+	"github.com/tinytub/alertmanager/types"
 )
 
 type notifierConfig interface {
@@ -1159,6 +1159,7 @@ type Qalarm struct {
 	AlertGroup string
 	phones     []string
 	tmpl       *template.Template
+	logger     log.Logger
 }
 
 // NewQalarm returns a new Qalarm.
@@ -1180,7 +1181,7 @@ type QalarmMessage struct {
 // Notify implements the Notifier interface.
 // ADD by zhaopeng-iri
 func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
-	data := w.tmpl.Data(receiverName(ctx), groupLabels(ctx), alerts...)
+	data := w.tmpl.Data(receiverName(ctx, w.logger), groupLabels(ctx, w.logger), alerts...)
 
 	statsMap := map[string]string{
 		"firing":   "异常",
@@ -1190,17 +1191,17 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 	//client, _ := NewClientForTimeOut()
 
 	groupKey, ok := GroupKey(ctx)
-	log.Debugf("zhaopeng-iri data: %+v\n", data)
 	//log.Infof("zhaopeng-iri data.Alerts: %+v\n", data.Alerts)
-	log.Debugf("zhaopeng-iri data.CommonAnnotations: %+v\n", data.CommonAnnotations)
-	log.Debugf("zhaopeng-iri data.CommonLabels: %+v\n", data.CommonLabels)
-	log.Debugf("zhaopeng-iri data.ExternalURL: %+v\n", data.ExternalURL)
-	log.Debugf("zhaopeng-iri data.GroupLabels: %+v\n", data.GroupLabels)
-	log.Debugf("zhaopeng-iri data.Receiver: %+v\n", data.Receiver)
-	log.Debugf("zhaopeng-iri data.Status: %+v\n", data.Status)
-	log.Debugf("zhaopeng-iri groupKey:%+v\n ", groupKey)
+	level.Debug(w.logger).Log("zhaopeng-iri data: %+v\n", data)
+	level.Debug(w.logger).Log("zhaopeng-iri data.CommonAnnotations: %+v\n", data.CommonAnnotations)
+	level.Debug(w.logger).Log("zhaopeng-iri data.CommonLabels: %+v\n", data.CommonLabels)
+	level.Debug(w.logger).Log("zhaopeng-iri data.ExternalURL: %+v\n", data.ExternalURL)
+	level.Debug(w.logger).Log("zhaopeng-iri data.GroupLabels: %+v\n", data.GroupLabels)
+	level.Debug(w.logger).Log("zhaopeng-iri data.Receiver: %+v\n", data.Receiver)
+	level.Debug(w.logger).Log("zhaopeng-iri data.Status: %+v\n", data.Status)
+	level.Debug(w.logger).Log("zhaopeng-iri groupKey:%+v\n ", groupKey)
 	if !ok {
-		log.Errorf("group key missing")
+		level.Error(w.logger).Log("msg", "group key missing")
 	}
 
 	//	var url string
@@ -1235,7 +1236,7 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 				resp.Body.Close()
 			}()
 		}
-		log.Debugf("resp code %s, resp body %s: ", resp.Status, string(respBody))
+		level.Debug(w.logger).Log("resp code: ", resp.Status, "resp body: ", resp.Status, string(respBody))
 
 	} else {
 		content := fmt.Sprintf("[%s] %s\n[详情] %s\n", statsMap[data.Status], data.CommonAnnotations["summary"], data.CommonAnnotations["description"])
@@ -1263,7 +1264,7 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 				resp.Body.Close()
 			}()
 		}
-		log.Debugf("resp code %s, resp body %s: ", resp.Status, string(respBody))
+		level.Debug(w.logger).Log("resp code: ", resp.Status, "resp body: ", resp.Status, string(respBody))
 	}
 
 	if respErr != nil {
@@ -1351,13 +1352,13 @@ func (w *Qalarm) QalarmUrl(content interface{}) string {
 	case string:
 		q.Set("content", v)
 		signStr, _ = w.GenSignatureByValues(q)
-		log.Debug("zhaopeng-iri content: ", v)
+		level.Debug(w.logger).Log("zhaopeng-iri content: ", v)
 		uri := fmt.Sprintf("phones=%s&level=%d&app_key=%s&sign=%s&content=%s", w.Getphones(), 2, w.Appkey, signStr, v)
 		return uri
 	case []string:
 		q.Set("content", strings.Join(v, "\n"))
 		signStr, _ = w.GenSignatureByValues(q)
-		log.Debug("zhaopeng-iri content: ", strings.Join(v, "\n"))
+		level.Debug(w.logger).Log("zhaopeng-iri content: ", strings.Join(v, "\n"))
 		content := strings.Join(v, "\n")
 		uri := fmt.Sprintf("phones=%s&level=%d&app_key=%s&sign=%s&content=%s", w.Getphones(), 2, w.Appkey, signStr, content)
 		return uri
@@ -1366,7 +1367,7 @@ func (w *Qalarm) QalarmUrl(content interface{}) string {
 	q.Set("app_key", w.Appkey)
 	q.Set("sign", signStr)
 	u.RawQuery = q.Encode()
-	log.Debug("zhaopeng-iri qalarmurl: ", u.String())
+	level.Debug(w.logger).Log("zhaopeng-iri qalarmurl: ", u.String())
 
 	return u.String()
 }
@@ -1391,12 +1392,12 @@ func (w *Qalarm) Getphones() string {
 	resp, err := http.Get(u.String())
 	body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1048576))
 	if err != nil {
-		log.Errorf("read body error: %s", err)
+		level.Error(w.logger).Log("read body error: ", err)
 	}
 	var wonder *Wonder
 	err = json.Unmarshal(body, &wonder)
 
-	log.Debugf("phone numbers: %s", wonder.Data)
+	level.Error(w.logger).Log("phone numbers ", wonder.Data)
 	return strings.Join(wonder.Data, ",")
 }
 
