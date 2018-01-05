@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
-	"github.com/tinytub/alertmanager/provider"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/types"
 )
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.

@@ -27,11 +27,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 
-	"github.com/tinytub/alertmanager/nflog"
-	"github.com/tinytub/alertmanager/nflog/nflogpb"
-	"github.com/tinytub/alertmanager/silence"
-	"github.com/tinytub/alertmanager/silence/silencepb"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/nflog"
+	"github.com/prometheus/alertmanager/nflog/nflogpb"
+	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/types"
 )
 
 type notifierConfigFunc func() bool
@@ -494,8 +494,7 @@ func TestInhibitStage(t *testing.T) {
 		return ok
 	})
 
-	marker := types.NewMarker()
-	inhibitor := NewInhibitStage(muter, marker)
+	inhibitor := NewInhibitStage(muter)
 
 	in := []model.LabelSet{
 		{},
@@ -520,10 +519,6 @@ func TestInhibitStage(t *testing.T) {
 			Alert: model.Alert{Labels: lset},
 		})
 	}
-
-	// Set the second alert as previously inhibited. It is expected to have
-	// the WasInhibited flag set to true afterwards.
-	marker.SetInhibited(inAlerts[1].Fingerprint(), "123")
 
 	_, alerts, err := inhibitor.Exec(nil, log.NewNopLogger(), inAlerts...)
 	if err != nil {

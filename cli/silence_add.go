@@ -14,8 +14,8 @@ import (
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/tinytub/alertmanager/types"
-	//"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/types"
+	//"github.com/prometheus/alertmanager/types"
 )
 
 type addResponse struct {
@@ -135,34 +135,43 @@ func add(cmd *cobra.Command, args []string) error {
 		Comment:   comment,
 	}
 
-	u, err := GetAlertmanagerURL()
+	silenceId, err := addSilence(&silence)
 	if err != nil {
 		return err
+	}
+
+	_, err = fmt.Println(silenceId)
+	return err
+}
+
+func addSilence(silence *types.Silence) (string, error) {
+	u, err := GetAlertmanagerURL()
+	if err != nil {
+		return "", err
 	}
 	u.Path = path.Join(u.Path, "/api/v1/silences")
 
 	buf := bytes.NewBuffer([]byte{})
 	err = json.NewEncoder(buf).Encode(silence)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	res, err := http.Post(u.String(), "application/json", buf)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	defer res.Body.Close()
 	response := addResponse{}
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
-		return fmt.Errorf("unable to parse silence json response from %s", u.String())
+		return "", fmt.Errorf("unable to parse silence json response from %s", u.String())
 	}
 
 	if response.Status == "error" {
-		fmt.Printf("[%s] %s\n", response.ErrorType, response.Error)
-	} else {
-		fmt.Println(response.Data.SilenceID)
+		return "", fmt.Errorf("[%s] %s", response.ErrorType, response.Error)
 	}
-	return nil
+
+	return response.Data.SilenceID, nil
 }

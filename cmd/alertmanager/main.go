@@ -39,17 +39,17 @@ import (
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/tinytub/alertmanager/api"
-	"github.com/tinytub/alertmanager/config"
-	"github.com/tinytub/alertmanager/dispatch"
-	"github.com/tinytub/alertmanager/inhibit"
-	"github.com/tinytub/alertmanager/nflog"
-	"github.com/tinytub/alertmanager/notify"
-	"github.com/tinytub/alertmanager/provider/mem"
-	"github.com/tinytub/alertmanager/silence"
-	"github.com/tinytub/alertmanager/template"
-	"github.com/tinytub/alertmanager/types"
-	"github.com/tinytub/alertmanager/ui"
+	"github.com/prometheus/alertmanager/api"
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/nflog"
+	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/provider/mem"
+	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/ui"
 	"github.com/weaveworks/mesh"
 )
 
@@ -465,7 +465,7 @@ type printfLogger struct {
 }
 
 func (l printfLogger) Printf(f string, args ...interface{}) {
-	level.Debug(l).Log(fmt.Sprintf(f, args...))
+	level.Debug(l).Log("msg", fmt.Sprintf(f, args...))
 }
 
 func extURL(listen, external string) (*url.URL, error) {

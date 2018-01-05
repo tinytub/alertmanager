@@ -44,9 +44,9 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 
-	"github.com/tinytub/alertmanager/config"
-	"github.com/tinytub/alertmanager/template"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/types"
 )
 
 type notifierConfig interface {
@@ -128,6 +128,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	for i, c := range nc.OpsGenieConfigs {
 		n := NewOpsGenie(c, tmpl, logger)
 		add("opsgenie", i, n, c)
+	}
+	for i, c := range nc.WechatConfigs {
+		n := NewWechat(c, tmpl, logger)
+		add("wechat", i, n, c)
 	}
 	for i, c := range nc.SlackConfigs {
 		n := NewSlack(c, tmpl, logger)
@@ -474,7 +478,6 @@ type pagerDutyPayload struct {
 }
 
 func (n *PagerDuty) notifyV1(ctx context.Context, eventType, key string, tmpl func(string) string, details map[string]string, as ...*types.Alert) (bool, error) {
-	level.Info(n.logger).Log("msg", "PagerDuty v1 API will no longer be supported: https://v2.developer.pagerduty.com/v2/docs/api-v2-frequently-asked-questions")
 
 	msg := &pagerDutyMessage{
 		ServiceKey:  string(n.conf.ServiceKey),
@@ -514,7 +517,7 @@ func (n *PagerDuty) notifyV2(ctx context.Context, eventType, key string, tmpl fu
 	if eventType == pagerDutyEventTrigger {
 		payload = &pagerDutyPayload{
 			Summary:       tmpl(n.conf.Description),
-			Source:        n.conf.Client,
+			Source:        tmpl(n.conf.Client),
 			Severity:      n.conf.Severity,
 			CustomDetails: details,
 			Component:     n.conf.Component,
@@ -635,11 +638,13 @@ type slackReq struct {
 
 // slackAttachment is used to display a richly-formatted message block.
 type slackAttachment struct {
-	Title     string `json:"title,omitempty"`
-	TitleLink string `json:"title_link,omitempty"`
-	Pretext   string `json:"pretext,omitempty"`
-	Text      string `json:"text"`
-	Fallback  string `json:"fallback"`
+	Title     string                 `json:"title,omitempty"`
+	TitleLink string                 `json:"title_link,omitempty"`
+	Pretext   string                 `json:"pretext,omitempty"`
+	Text      string                 `json:"text"`
+	Fallback  string                 `json:"fallback"`
+	Fields    []slackAttachmentField `json:"fields"`
+	Footer    string                 `json:"footer"`
 
 	Color    string   `json:"color,omitempty"`
 	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
@@ -666,9 +671,24 @@ func (n *Slack) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		Pretext:   tmplText(n.conf.Pretext),
 		Text:      tmplText(n.conf.Text),
 		Fallback:  tmplText(n.conf.Fallback),
+		Footer:    tmplText(n.conf.Footer),
 		Color:     tmplText(n.conf.Color),
 		MrkdwnIn:  []string{"fallback", "pretext", "text"},
 	}
+
+	var numFields = len(n.conf.Fields)
+	if numFields > 0 {
+		var fields = make([]slackAttachmentField, numFields)
+		for k, v := range n.conf.Fields {
+			fields[k] = slackAttachmentField{
+				tmplText(v["title"]),
+				tmplText(v["value"]),
+				n.conf.ShortFields,
+			}
+		}
+		attachment.Fields = fields
+	}
+
 	req := &slackReq{
 		Channel:     tmplText(n.conf.Channel),
 		Username:    tmplText(n.conf.Username),
@@ -779,6 +799,136 @@ func (n *Hipchat) retry(statusCode int) (bool, error) {
 	// https://developer.atlassian.com/hipchat/guide/hipchat-rest-api/api-response-codes
 	if statusCode/100 != 2 {
 		return (statusCode == 429 || statusCode/100 == 5), fmt.Errorf("unexpected status code %v", statusCode)
+	}
+
+	return false, nil
+}
+
+// Wechat implements a Notfier for wechat notifications
+type Wechat struct {
+	conf   *config.WechatConfig
+	tmpl   *template.Template
+	logger log.Logger
+}
+type WechatToken struct {
+	AccessToken string `json:"access_token"`
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `json:"-"`
+}
+type weChatMessage struct {
+	Content string `json:"content"`
+}
+type weChatCreateMessage struct {
+	Text    weChatMessage `yaml:"text,omitempty" json:"text,omitempty"`
+	ToUser  string        `yaml:"touser,omitempty" json:"touser,omitempty"`
+	ToParty string        `yaml:"toparty,omitempty" json:"toparty,omitempty"`
+	Totag   string        `yaml:"totag,omitempty" json:"totag,omitempty"`
+	AgentID string        `yaml:"agentid,omitempty" json:"agentid,omitempty"`
+	Safe    string        `yaml:"safe,omitempty" json:"safe,omitempty"`
+	Type    string        `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
+}
+
+type weChatCloseMessage struct {
+	Text    weChatMessage `yaml:"text,omitempty" json:"text,omitempty"`
+	ToUser  string        `yaml:"touser,omitempty" json:"touser,omitempty"`
+	ToParty string        `yaml:"toparty,omitempty" json:"toparty,omitempty"`
+	Totag   string        `yaml:"totag,omitempty" json:"totag,omitempty"`
+	AgentID string        `yaml:"agentid,omitempty" json:"agentid,omitempty"`
+	Safe    string        `yaml:"safe,omitempty" json:"safe,omitempty"`
+	Type    string        `yaml:"msgtype,omitempty" json:"msgtype,omitempty"`
+}
+
+type weChatErrorResponse struct {
+	Code  int    `json:"code"`
+	Error string `json:"error"`
+}
+
+// NewWechat returns a new Wechat notifier.
+func NewWechat(c *config.WechatConfig, t *template.Template, l log.Logger) *Wechat {
+	return &Wechat{conf: c, tmpl: t, logger: l}
+}
+
+// Notify implements the Notifier interface.
+func (n *Wechat) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	key, ok := GroupKey(ctx)
+	if !ok {
+		return false, fmt.Errorf("group key missing")
+	}
+	data := n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+	level.Debug(n.logger).Log("msg", "Notifying Wechat", "incident", key)
+
+	var err error
+	tmpl := tmplText(n.tmpl, data, &err)
+
+	var (
+		msg    interface{}
+		apiURL string
+		apiMsg = weChatMessage{
+			Content: tmpl(n.conf.Message),
+		}
+		alerts = types.Alerts(as...)
+	)
+	parameters := url.Values{}
+	parameters.Add("corpsecret", tmpl(string(n.conf.APISecret)))
+	parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
+	apiURL = n.conf.APIURL + "gettoken"
+	u, err := url.Parse(apiURL)
+	if err != nil {
+		return false, err
+	}
+	u.RawQuery = parameters.Encode()
+	level.Debug(n.logger).Log("msg", "Sending Wechat  message", "incident", key, "url", u.String())
+	resp, err := ctxhttp.Get(ctx, http.DefaultClient, u.String())
+	if err != nil {
+		return true, err
+	}
+	defer resp.Body.Close()
+	var wechatToken WechatToken
+	if err := json.NewDecoder(resp.Body).Decode(&wechatToken); err != nil {
+		return false, err
+	}
+	postMessageURL := n.conf.APIURL + "message/send?access_token=" + wechatToken.AccessToken
+	switch alerts.Status() {
+	case model.AlertResolved:
+		msg = &weChatCloseMessage{Text: apiMsg,
+			ToUser:  tmpl(n.conf.ToUser),
+			ToParty: tmpl(n.conf.ToParty),
+			Totag:   tmpl(n.conf.ToTag),
+			AgentID: tmpl(n.conf.AgentID),
+			Type:    "text",
+			Safe:    "0"}
+	default:
+		msg = &weChatCreateMessage{
+			Text: weChatMessage{
+				Content: tmpl(n.conf.Message),
+			},
+			ToUser:  tmpl(n.conf.ToUser),
+			ToParty: tmpl(n.conf.ToParty),
+			Totag:   tmpl(n.conf.ToTag),
+			AgentID: tmpl(n.conf.AgentID),
+			Type:    "text",
+			Safe:    "0",
+		}
+	}
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+		return false, err
+	}
+	resp, err = ctxhttp.Post(ctx, http.DefaultClient, postMessageURL, contentTypeJSON, &buf)
+	if err != nil {
+		return true, err
+	}
+	body, _ := ioutil.ReadAll(resp.Body)
+	level.Debug(n.logger).Log("msg", "response: "+string(body), "incident", key)
+	defer resp.Body.Close()
+	return n.retry(resp.StatusCode)
+}
+func (n *Wechat) retry(statusCode int) (bool, error) {
+	// https://work.weixin.qq.com/api/doc#10649
+	if statusCode/100 == 5 || statusCode == 429 {
+		return true, fmt.Errorf("unexpected status code %v", statusCode)
+	} else if statusCode/100 != 2 {
+		return false, fmt.Errorf("unexpected status code %v", statusCode)
 	}
 
 	return false, nil

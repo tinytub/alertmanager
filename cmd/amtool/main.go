@@ -1,6 +1,6 @@
 package main
 
-import "github.com/tinytub/alertmanager/cli"
+import "github.com/prometheus/alertmanager/cli"
 
 func main() {
 	cli.Execute()

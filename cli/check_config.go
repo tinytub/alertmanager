@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/tinytub/alertmanager/config"
-	"github.com/tinytub/alertmanager/template"
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/template"
 )
 
 // alertCmd represents the alert command

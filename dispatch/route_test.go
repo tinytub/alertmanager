@@ -21,7 +21,7 @@ import (
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 
-	"github.com/tinytub/alertmanager/config"
+	"github.com/prometheus/alertmanager/config"
 )
 
 func TestRouteMatch(t *testing.T) {

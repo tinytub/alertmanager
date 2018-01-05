@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/spf13/cobra/doc"
 
-	"github.com/tinytub/alertmanager/cli"
+	"github.com/prometheus/alertmanager/cli"
 )
 
 func main() {

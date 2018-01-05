@@ -30,13 +30,13 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/pkg/labels"
 
-	"github.com/tinytub/alertmanager/config"
-	"github.com/tinytub/alertmanager/dispatch"
-	"github.com/tinytub/alertmanager/pkg/parse"
-	"github.com/tinytub/alertmanager/provider"
-	"github.com/tinytub/alertmanager/silence"
-	"github.com/tinytub/alertmanager/silence/silencepb"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/pkg/parse"
+	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/types"
 	"github.com/weaveworks/mesh"
 )
 

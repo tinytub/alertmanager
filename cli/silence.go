@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/types"
 )
 
 //var labels []string
@@ -31,4 +31,6 @@ func init() {
 	silenceCmd.AddCommand(addCmd)
 	silenceCmd.AddCommand(expireCmd)
 	silenceCmd.AddCommand(queryCmd)
+	silenceCmd.AddCommand(importCmd)
+	silenceCmd.AddCommand(updateCmd)
 }

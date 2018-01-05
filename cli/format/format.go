@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
-	"github.com/tinytub/alertmanager/config"
-	"github.com/tinytub/alertmanager/dispatch"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/types"
 )
 
 const DefaultDateFormat = "2006-01-02 15:04:05 MST"

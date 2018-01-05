@@ -24,9 +24,9 @@ import (
 	"github.com/oklog/oklog/pkg/group"
 	"github.com/prometheus/common/model"
 
-	"github.com/tinytub/alertmanager/config"
-	"github.com/tinytub/alertmanager/provider"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/types"
 )
 
 // An Inhibitor determines whether a given label set is muted
@@ -103,7 +103,9 @@ func (ih *Inhibitor) Run() {
 		ctx context.Context
 	)
 
+	ih.mtx.Lock()
 	ctx, ih.cancel = context.WithCancel(context.Background())
+	ih.mtx.Unlock()
 	gcCtx, gcCancel := context.WithCancel(ctx)
 	runCtx, runCancel := context.WithCancel(ctx)
 
@@ -129,6 +131,8 @@ func (ih *Inhibitor) Stop() {
 		return
 	}
 
+	ih.mtx.RLock()
+	defer ih.mtx.RUnlock()
 	if ih.cancel != nil {
 		ih.cancel()
 	}

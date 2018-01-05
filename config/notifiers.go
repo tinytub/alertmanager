@@ -15,6 +15,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -75,6 +76,7 @@ var (
 		Pretext:   `{{ template "slack.default.pretext" . }}`,
 		Text:      `{{ template "slack.default.text" . }}`,
 		Fallback:  `{{ template "slack.default.fallback" . }}`,
+		Footer:    `{{ template "slack.default.footer" . }}`,
 	}
 
 	// DefaultHipchatConfig defines default values for Hipchat configurations.
@@ -97,6 +99,21 @@ var (
 		Message:     `{{ template "opsgenie.default.message" . }}`,
 		Description: `{{ template "opsgenie.default.description" . }}`,
 		Source:      `{{ template "opsgenie.default.source" . }}`,
+		// TODO: Add a details field with all the alerts.
+	}
+
+	// DefaultWechatConfig defines default values for wechat configurations.
+	DefaultWechatConfig = WechatConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Message:   `{{ template "wechat.default.message" . }}`,
+		APIURL:    `{{ template "wechat.default.api_url" . }}`,
+		APISecret: `{{ template "wechat.default.api_secret" . }}`,
+		ToUser:    `{{ template "wechat.default.to_user" . }}`,
+		ToParty:   `{{ template "wechat.default.to_party" . }}`,
+		ToTag:     `{{ template "wechat.default.to_tag" . }}`,
+		AgentID:   `{{ template "wechat.default.agent_id" . }}`,
 		// TODO: Add a details field with all the alerts.
 	}
 
@@ -223,14 +240,17 @@ type SlackConfig struct {
 	Username string `yaml:"username,omitempty" json:"username,omitempty"`
 	Color    string `yaml:"color,omitempty" json:"color,omitempty"`
 
-	Title     string `yaml:"title,omitempty" json:"title,omitempty"`
-	TitleLink string `yaml:"title_link,omitempty" json:"title_link,omitempty"`
-	Pretext   string `yaml:"pretext,omitempty" json:"pretext,omitempty"`
-	Text      string `yaml:"text,omitempty" json:"text,omitempty"`
-	Fallback  string `yaml:"fallback,omitempty" json:"fallback,omitempty"`
-	IconEmoji string `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
-	IconURL   string `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
-	LinkNames bool   `yaml:"link_names,omitempty" json:"link_names,omitempty"`
+	Title       string              `yaml:"title,omitempty" json:"title,omitempty"`
+	TitleLink   string              `yaml:"title_link,omitempty" json:"title_link,omitempty"`
+	Pretext     string              `yaml:"pretext,omitempty" json:"pretext,omitempty"`
+	Text        string              `yaml:"text,omitempty" json:"text,omitempty"`
+	Fields      []map[string]string `yaml:"fields,omitempty" json:"fields,omitempty"`
+	ShortFields bool                `yaml:"short_fields,omitempty" json:"short_fields,omitempty"`
+	Footer      string              `yaml:"footer,omitempty" json:"footer,omitempty"`
+	Fallback    string              `yaml:"fallback,omitempty" json:"fallback,omitempty"`
+	IconEmoji   string              `yaml:"icon_emoji,omitempty" json:"icon_emoji,omitempty"`
+	IconURL     string              `yaml:"icon_url,omitempty" json:"icon_url,omitempty"`
+	LinkNames   bool                `yaml:"link_names,omitempty" json:"link_names,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -298,7 +318,48 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.URL == "" {
 		return fmt.Errorf("missing URL in webhook config")
 	}
+	url, err := url.Parse(c.URL)
+	if err != nil {
+		return err
+	}
+	if url.Scheme != "https" && url.Scheme != "http" {
+		return fmt.Errorf("scheme required for webhook url")
+	}
+	c.URL = url.String()
 	return checkOverflow(c.XXX, "webhook config")
+}
+
+// WechatConfig configures notifications via Wechat.
+type WechatConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	APISecret string `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
+	CorpID    string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
+	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
+	APIURL    string `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	ToUser    string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
+	ToParty   string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
+	ToTag     string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
+	AgentID   string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultWechatConfig
+	type plain WechatConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.APISecret == "" {
+		return fmt.Errorf("missing Wechat APISecret in Wechat config")
+	}
+	if c.CorpID == "" {
+		return fmt.Errorf("missing Wechat CorpID in Wechat config")
+	}
+	return checkOverflow(c.XXX, "Wechat config")
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.

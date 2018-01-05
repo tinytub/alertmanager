@@ -29,8 +29,8 @@ Docker images are available on [Quay.io](https://quay.io/repository/prometheus/a
 You can either `go get` it:
 
 ```
-$ GO15VENDOREXPERIMENT=1 go get github.com/tinytub/alertmanager/cmd/...
-# cd $GOPATH/src/github.com/tinytub/alertmanager
+$ GO15VENDOREXPERIMENT=1 go get github.com/prometheus/alertmanager/cmd/...
+# cd $GOPATH/src/github.com/prometheus/alertmanager
 $ alertmanager -config.file=<your_file>
 ```
 
@@ -39,7 +39,7 @@ Or checkout the source code and build manually:
 ```
 $ mkdir -p $GOPATH/src/github.com/prometheus
 $ cd $GOPATH/src/github.com/prometheus
-$ git clone https://github.com/tinytub/alertmanager.git
+$ git clone https://github.com/prometheus/alertmanager.git
 $ cd alertmanager
 $ make build
 $ ./alertmanager -config.file=<your_file>
@@ -309,13 +309,18 @@ Procfile within this repository.
 
 	goreman start
 
-To point your prometheus instance to multiple Alertmanagers use the
-`-alertmanager.url` parameter. It allows passing in a comma separated list.
-Start your prometheus like this, for example:
+To point your Prometheus 1.4, or later, instance to multiple Alertmanagers, configure them
+in your `prometheus.yml` configuration file, for example:
 
-	./prometheus -config.file=prometheus.yml -alertmanager.url http://localhost:9095,http://localhost:9094,http://localhost:9093
-
-> Note: make sure to have a valid `prometheus.yml` in your current directory
+```yaml
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+      - alertmanager1:9093
+      - alertmanager2:9093
+      - alertmanager3:9093
+```
 
 > Important: Do not load balance traffic between Prometheus and its Alertmanagers, but instead point Prometheus to a list of all Alertmanagers. The Alertmanager implementation expects all alerts to be sent to all Alertmanagers to ensure high availability.
 

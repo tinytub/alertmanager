@@ -27,13 +27,14 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
-	"github.com/tinytub/alertmanager/config"
-	"github.com/tinytub/alertmanager/inhibit"
-	"github.com/tinytub/alertmanager/nflog"
-	"github.com/tinytub/alertmanager/silence"
-	"github.com/tinytub/alertmanager/template"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/nflog"
+	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/types"
 )
 
 var (
@@ -54,6 +55,7 @@ func init() {
 	numNotifications.WithLabelValues("email")
 	numNotifications.WithLabelValues("hipchat")
 	numNotifications.WithLabelValues("pagerduty")
+	numNotifications.WithLabelValues("wechat")
 	numNotifications.WithLabelValues("pushover")
 	numNotifications.WithLabelValues("slack")
 	numNotifications.WithLabelValues("opsgenie")
@@ -62,6 +64,7 @@ func init() {
 	numFailedNotifications.WithLabelValues("email")
 	numFailedNotifications.WithLabelValues("hipchat")
 	numFailedNotifications.WithLabelValues("pagerduty")
+	numFailedNotifications.WithLabelValues("wechat")
 	numFailedNotifications.WithLabelValues("pushover")
 	numFailedNotifications.WithLabelValues("slack")
 	numFailedNotifications.WithLabelValues("opsgenie")
@@ -208,7 +211,7 @@ func BuildPipeline(
 	confs []*config.Receiver,
 	tmpl *template.Template,
 	wait func() time.Duration,
-	inhibitor *inhibit.Inhibitor,
+	muter types.Muter,
 	silences *silence.Silences,
 	notificationLog nflog.Log,
 	marker types.Marker,
@@ -216,7 +219,7 @@ func BuildPipeline(
 ) RoutingStage {
 	rs := RoutingStage{}
 
-	is := NewInhibitStage(inhibitor, marker)
+	is := NewInhibitStage(muter)
 	ss := NewSilenceStage(silences, marker)
 
 	for _, rc := range confs {
@@ -319,11 +322,8 @@ type InhibitStage struct {
 }
 
 // NewInhibitStage return a new InhibitStage.
-func NewInhibitStage(m types.Muter, mk types.Marker) *InhibitStage {
-	return &InhibitStage{
-		muter:  m,
-		marker: mk,
-	}
+func NewInhibitStage(m types.Muter) *InhibitStage {
+	return &InhibitStage{muter: m}
 }
 
 // Exec implements the Stage interface.

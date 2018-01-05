@@ -22,8 +22,8 @@ import (
 
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/common/model"
-	"github.com/tinytub/alertmanager/provider"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/provider"
+	"github.com/prometheus/alertmanager/types"
 )
 
 func init() {

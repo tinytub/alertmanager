@@ -13,10 +13,10 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/tinytub/alertmanager/cli/format"
-	"github.com/tinytub/alertmanager/dispatch"
-	"github.com/tinytub/alertmanager/pkg/parse"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/cli/format"
+	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/pkg/parse"
+	"github.com/prometheus/alertmanager/types"
 )
 
 type alertmanagerAlertResponse struct {

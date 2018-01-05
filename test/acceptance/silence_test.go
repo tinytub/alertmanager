@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/tinytub/alertmanager/test"
+	. "github.com/prometheus/alertmanager/test"
 )
 
 func TestSilencing(t *testing.T) {

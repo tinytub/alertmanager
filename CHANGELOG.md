@@ -1,6 +1,22 @@
+## 0.12.0 / 2017-12-15
+
+* [FEATURE] package amtool in docker container (#1127)
+* [FEATURE] Add notify support for Chinese User wechat (#1059)
+* [FEATURE] [amtool] Add a new `silence import` command (#1082)
+* [FEATURE] [amtool] Add new command to update silence (#1123)
+* [FEATURE] [amtool] Add ability to query for silences that will expire soon (#1120)
+* [ENHANCEMENT] Template source field in PagerDuty alert payload (#1117)
+* [ENHANCEMENT] Add footer field for slack messages (#1141)
+* [ENHANCEMENT] Add Slack additional "fields" to notifications (#1135)
+* [ENHANCEMENT] Adding check for webhook's URL formatting (#1129)
+* [ENHANCEMENT] Let the browser remember the creator of a silence (#1112)
+* [BUGFIX] Fix race in stopping inhibitor (#1118)
+* [BUGFIX] Fix browser UI when entering negative duration (#1132)
+
 ## 0.11.0 / 2017-11-16
 
 * [CHANGE] Make silence negative filtering consistent with alert filtering (#1095)
+* [CHANGE] Change HipChat and OpsGenie api config names (#1087)
 * [ENHANCEMENT] amtool: Allow 'd', 'w', 'y' time suffixes when creating silence (#1091)
 * [ENHANCEMENT] Support OpsGenie Priority field (#1094)
 * [BUGFIX] Fix UI when no silences are present (#1090)

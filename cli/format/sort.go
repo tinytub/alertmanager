@@ -1,8 +1,8 @@
 package format
 
 import (
-	"github.com/tinytub/alertmanager/dispatch"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/types"
 )
 
 type ByEndAt []types.Silence

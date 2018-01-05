@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/tinytub/alertmanager/dispatch"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/types"
 )
 
 type JSONFormatter struct {

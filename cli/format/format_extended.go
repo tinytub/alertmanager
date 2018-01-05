@@ -9,8 +9,8 @@ import (
 	"text/tabwriter"
 
 	"github.com/prometheus/common/model"
-	"github.com/tinytub/alertmanager/dispatch"
-	"github.com/tinytub/alertmanager/types"
+	"github.com/prometheus/alertmanager/dispatch"
+	"github.com/prometheus/alertmanager/types"
 )
 
 type ExtendedFormatter struct {
