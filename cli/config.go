@@ -8,10 +8,10 @@ import (
 	"path"
 	"time"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/prometheus/alertmanager/cli/format"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // Config is the response type of alertmanager config endpoint

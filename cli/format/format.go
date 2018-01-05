@@ -4,10 +4,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/spf13/viper"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/spf13/viper"
 )
 
 const DefaultDateFormat = "2006-01-02 15:04:05 MST"

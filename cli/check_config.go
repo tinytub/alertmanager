@@ -3,9 +3,9 @@ package cli
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
+	"github.com/spf13/cobra"
 )
 
 // alertCmd represents the alert command

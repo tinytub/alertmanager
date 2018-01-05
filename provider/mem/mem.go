@@ -17,9 +17,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/common/model"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/common/model"
 )
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.

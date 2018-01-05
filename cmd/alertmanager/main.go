@@ -34,11 +34,6 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/promlog"
-	"github.com/prometheus/common/route"
-	"github.com/prometheus/common/version"
-	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -50,6 +45,11 @@ import (
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/promlog"
+	"github.com/prometheus/common/route"
+	"github.com/prometheus/common/version"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/weaveworks/mesh"
 )
 

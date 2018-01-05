@@ -10,11 +10,11 @@ import (
 	"path"
 	"time"
 
+	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/prometheus/alertmanager/types"
 	//"github.com/prometheus/alertmanager/types"
 )
 
