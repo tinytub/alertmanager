@@ -33,6 +33,7 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
+		Message: `{{ template "qalarm.default.message" . }}`,
 	}
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
@@ -475,6 +476,8 @@ type QalarmConfig struct {
 
 	// URL to send GET request to.
 	URL string `yaml:"url" json:"url"`
+
+	Message string `yaml:"message,omitempty" json:"message,omitempty"`
 
 	// Appkey to send GET request to.
 	Appkey string `yaml:"appkey" json:"appkey"`

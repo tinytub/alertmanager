@@ -1304,6 +1304,7 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 // ADD by zhaopeng-iri
 type Qalarm struct {
 	// The URL to which notifications are sent.
+	conf       *config.QalarmConfig
 	URL        string
 	Appkey     string
 	Secret     string
@@ -1316,7 +1317,7 @@ type Qalarm struct {
 // NewQalarm returns a new Qalarm.
 // ADD by zhaopeng-iri
 func NewQalarm(conf *config.QalarmConfig, t *template.Template, l log.Logger) *Qalarm {
-	return &Qalarm{URL: conf.URL, Appkey: conf.Appkey, Secret: conf.Secret, AlertGroup: conf.AlertGroup, tmpl: t, logger: l}
+	return &Qalarm{conf: conf, URL: conf.URL, Appkey: conf.Appkey, Secret: conf.Secret, AlertGroup: conf.AlertGroup, tmpl: t, logger: l}
 }
 
 // QalarmMessage defines the JSON object send to qalarm endpoints.
@@ -1331,8 +1332,18 @@ type QalarmMessage struct {
 
 // Notify implements the Notifier interface.
 // ADD by zhaopeng-iri
-func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
-	data := w.tmpl.Data(receiverName(ctx, w.logger), groupLabels(ctx, w.logger), alerts...)
+func (w *Qalarm) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+	//TODO 有时间改成 template 模式
+	//	var err error
+	var (
+		//alerts = types.Alerts(as...)
+		data = w.tmpl.Data(receiverName(ctx, w.logger), groupLabels(ctx, w.logger), as...)
+		//tmpl = tmplText(w.tmpl, data, &err)
+		//eventType = pagerDutyEventTrigger
+	)
+
+	//data := w.tmpl.Data(receiverName(ctx, w.logger), groupLabels(ctx, w.logger), alerts...)
+	//tmpl := tmplText(w.tmpl, data, &err)
 	statsMap := map[string]string{
 		"firing":   "异常",
 		"resolved": "恢复",
@@ -1341,15 +1352,16 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 	//client, _ := NewClientForTimeOut()
 
 	groupKey, ok := GroupKey(ctx)
+	level.Debug(w.logger).Log("msg", "Notifying Qalarm", "incident", groupKey)
 	//log.Infof("zhaopeng-iri data.Alerts: %+v\n", data.Alerts)
-	level.Debug(w.logger).Log("zhaopeng-iri data: ", data)
-	level.Debug(w.logger).Log("zhaopeng-iri data.CommonAnnotations: ", data.CommonAnnotations)
-	level.Debug(w.logger).Log("zhaopeng-iri data.CommonLabels: ", data.CommonLabels)
-	level.Debug(w.logger).Log("zhaopeng-iri data.ExternalURL: ", data.ExternalURL)
-	level.Debug(w.logger).Log("zhaopeng-iri data.GroupLabels: ", data.GroupLabels)
-	level.Debug(w.logger).Log("zhaopeng-iri data.Receiver: ", data.Receiver)
-	level.Debug(w.logger).Log("zhaopeng-iri data.Status: ", data.Status)
-	level.Debug(w.logger).Log("zhaopeng-iri groupKey: ", groupKey)
+	level.Debug(w.logger).Log("zhaopeng-iri_data: ", data)
+	level.Debug(w.logger).Log("zhaopeng-iri_data.CommonAnnotations: ", data.CommonAnnotations)
+	level.Debug(w.logger).Log("zhaopeng-iri_data.CommonLabels: ", data.CommonLabels)
+	level.Debug(w.logger).Log("zhaopeng-iri_data.ExternalURL: ", data.ExternalURL)
+	level.Debug(w.logger).Log("zhaopeng-iri_data.GroupLabels: ", data.GroupLabels)
+	level.Debug(w.logger).Log("zhaopeng-iri_data.Receiver: ", data.Receiver)
+	level.Debug(w.logger).Log("zhaopeng-iri_data.Status: ", data.Status)
+	level.Debug(w.logger).Log("zhaopeng-iri_groupKey: ", groupKey)
 	if !ok {
 		level.Error(w.logger).Log("msg", "group key missing")
 	}
@@ -1358,53 +1370,29 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 	var resp *http.Response
 	var respErr error
 	if len(data.Alerts) > 1 {
-		var content []string
+		//var content []string
 		for _, d := range data.Alerts {
-			content = append(content, fmt.Sprintf("[%s] %s\n[详情] %s\n", statsMap[d.Status], d.Annotations["summary"], d.Annotations["description"]))
-		}
-		uri := w.QalarmUrl(content)
-		body, err := genQalarmBody(uri)
 
-		if err != nil {
-			return true, err
-		}
+			//content := tmpl(w.conf.Message)
+			content := fmt.Sprintf("[%s] %s\n[详情] %s\n", statsMap[d.Status], d.Annotations["summary"], d.Annotations["description"])
+			uri := w.QalarmUrl(content)
+			body := genQalarmBody(uri)
 
-		/*
-		   client, err := NewClientForTimeOut()
-		   request, err := http.NewRequest("POST", w.URL, body)
-		   log.Debugf("request: %s", request.Body)
-		   //resp, err := ctxhttp.Get(ctx, c.httpClient, url.String())
-		   request.Header.Add("content-type", "application/x-www-form-urlencoded; charset=utf-8")
-		   resp, respErr = client.Do(request)
-		*/
-
-		resp, respErr = ctxhttp.Post(ctx, http.DefaultClient, w.URL, "application/x-www-form-urlencoded; charset=utf-8", body)
-		respBody, _ := ioutil.ReadAll(resp.Body)
-		if resp != nil && resp.Body != nil {
-			defer func() {
-				io.Copy(ioutil.Discard, resp.Body)
-				resp.Body.Close()
-			}()
+			resp, respErr = ctxhttp.Post(ctx, http.DefaultClient, w.URL, "application/x-www-form-urlencoded; charset=utf-8", body)
+			respBody, _ := ioutil.ReadAll(resp.Body)
+			if resp != nil && resp.Body != nil {
+				defer func() {
+					io.Copy(ioutil.Discard, resp.Body)
+					resp.Body.Close()
+				}()
+			}
+			level.Debug(w.logger).Log("respCode", resp.Status, "respBody", string(respBody))
 		}
-		level.Debug(w.logger).Log("resp code: ", resp.Status, "resp body: ", resp.Status, string(respBody))
 
 	} else {
 		content := fmt.Sprintf("[%s] %s\n[详情] %s\n", statsMap[data.Status], data.CommonAnnotations["summary"], data.CommonAnnotations["description"])
 		uri := w.QalarmUrl(content)
-		body, err := genQalarmBody(uri)
-
-		if err != nil {
-			return true, err
-		}
-
-		/*
-		   client, err := NewClientForTimeOut()
-		   request, err := http.NewRequest("POST", w.URL, body)
-		   log.Debugf("request: %s", request.Body)
-		   //resp, err := ctxhttp.Get(ctx, c.httpClient, url.String())
-		   request.Header.Add("content-type", "application/x-www-form-urlencoded; charset=utf-8")
-		   resp, respErr = client.Do(request)
-		*/
+		body := genQalarmBody(uri)
 
 		resp, respErr = ctxhttp.Post(ctx, http.DefaultClient, w.URL, "application/x-www-form-urlencoded; charset=utf-8", body)
 		respBody, _ := ioutil.ReadAll(resp.Body)
@@ -1416,6 +1404,24 @@ func (w *Qalarm) Notify(ctx context.Context, alerts ...*types.Alert) (bool, erro
 		}
 		level.Debug(w.logger).Log("resp code: ", resp.Status, "resp body: ", resp.Status, string(respBody))
 	}
+
+	/*
+		content := tmpl(w.conf.Message)
+		level.Debug(w.logger).Log("msg", "Qalarm Content", "Content", content)
+
+		uri := w.QalarmUrl(content)
+		body := genQalarmBody(uri)
+
+		resp, respErr = ctxhttp.Post(ctx, http.DefaultClient, w.URL, "application/x-www-form-urlencoded; charset=utf-8", body)
+		respBody, _ := ioutil.ReadAll(resp.Body)
+		if resp != nil && resp.Body != nil {
+			defer func() {
+				io.Copy(ioutil.Discard, resp.Body)
+				resp.Body.Close()
+			}()
+		}
+		level.Debug(w.logger).Log("respCode", resp.Status, "respBody", string(respBody))
+	*/
 
 	if respErr != nil {
 		return true, respErr
@@ -1437,15 +1443,18 @@ func (w *Qalarm) retry(statusCode int) (bool, error) {
 }
 
 // Add by zhaopeng-iri
-func genQalarmBody(uri string) (*bytes.Buffer, error) {
-	params := url.Values{}
-	for _, val := range strings.Split(uri, "&") {
-		t := strings.Split(val, "=")
-		params.Set(t[0], t[1])
-	}
-	body := bytes.NewBufferString(params.Encode())
+func genQalarmBody(uri string) *bytes.Buffer {
+	/*
+		params := url.Values{}
+		for _, val := range strings.Split(uri, "&") {
+			t := strings.Split(val, "=")
+			params.Set(t[0], t[1])
+		}
+		body := bytes.NewBufferString(params.Encode())
+	*/
+	body := bytes.NewBufferString(uri)
 
-	return body, nil
+	return body
 }
 
 // ADD by zhaopeng-iri
@@ -1502,22 +1511,27 @@ func (w *Qalarm) QalarmUrl(content interface{}) string {
 	case string:
 		q.Set("content", v)
 		signStr, _ = w.GenSignatureByValues(q)
-		level.Debug(w.logger).Log("zhaopeng-iri content: ", v)
-		uri := fmt.Sprintf("phones=%s&level=%d&app_key=%s&sign=%s&content=%s", w.Getphones(), 2, w.Appkey, signStr, v)
-		return uri
+		level.Debug(w.logger).Log("zhaopeng-iri_content", v)
+		//uri := fmt.Sprintf("phones=%s&level=%d&app_key=%s&sign=%s&content=%s", w.Getphones(), 2, w.Appkey, signStr, v)
+		q.Set("app_key", w.Appkey)
+		q.Set("sign", signStr)
+		u.RawQuery = q.Encode()
+		level.Debug(w.logger).Log("zhaopeng-iri_qalarmurl", u.String())
+		return u.RawQuery
 	case []string:
 		q.Set("content", strings.Join(v, "\n"))
 		signStr, _ = w.GenSignatureByValues(q)
-		level.Debug(w.logger).Log("zhaopeng-iri content: ", strings.Join(v, "\n"))
+		level.Debug(w.logger).Log("zhaopeng-iri_content", strings.Join(v, "\n"))
 		content := strings.Join(v, "\n")
 		uri := fmt.Sprintf("phones=%s&level=%d&app_key=%s&sign=%s&content=%s", w.Getphones(), 2, w.Appkey, signStr, content)
+		level.Debug(w.logger).Log("zhaopeng-iri_qalarmurl", uri)
 		return uri
 	}
 
 	q.Set("app_key", w.Appkey)
 	q.Set("sign", signStr)
 	u.RawQuery = q.Encode()
-	level.Debug(w.logger).Log("zhaopeng-iri qalarmurl: ", u.String())
+	level.Debug(w.logger).Log("zhaopeng-iri_qalarmurl", u.String())
 
 	return u.String()
 }
@@ -1542,12 +1556,12 @@ func (w *Qalarm) Getphones() string {
 	resp, err := http.Get(u.String())
 	body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1048576))
 	if err != nil {
-		level.Error(w.logger).Log("read body error: ", err)
+		level.Error(w.logger).Log("read_body_error: ", err)
 	}
 	var wonder *Wonder
 	err = json.Unmarshal(body, &wonder)
 
-	level.Error(w.logger).Log("phone numbers ", wonder.Data)
+	level.Error(w.logger).Log("phone_numbers", strings.Join(wonder.Data, ","))
 	return strings.Join(wonder.Data, ",")
 }
 
@@ -1558,40 +1572,3 @@ func hashKey(s string) string {
 	h.Write([]byte(s))
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
-
-/*
-func NewClient(rt http.RoundTripper) *http.Client {
-    return &http.Client{Transport: rt}
-}
-
-func NewClientForTimeOut() (*http.Client, error) {
-
-    timeout := time.Duration(3 * time.Second)
-    var rt http.RoundTripper = NewDeadlineRoundTripper(timeout)
-
-    // Return a new client with the configured round tripper.
-    return NewClient(rt), nil
-}
-
-func NewDeadlineRoundTripper(timeout time.Duration) http.RoundTripper {
-    return &http.Transport{
-        DisableKeepAlives: true,
-        Dial: func(netw, addr string) (c net.Conn, err error) {
-            start := time.Now()
-
-            c, err = net.DialTimeout(netw, addr, timeout)
-            if err != nil {
-                return nil, err
-            }
-
-            //TODO 超时打点
-            if err = c.SetDeadline(start.Add(timeout)); err != nil {
-                c.Close()
-                return nil, err
-            }
-
-            return c, nil
-        },
-    }
-}
-*/
